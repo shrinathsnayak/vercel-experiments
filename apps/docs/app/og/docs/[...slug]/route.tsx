@@ -1,27 +1,29 @@
-import { source } from '@/lib/source';
 import { notFound } from 'next/navigation';
-import { generateOGImage } from 'fumadocs-ui/og';
-import { getLogoDataUrl } from '@/lib/brand-assets';
+import { createOgImage } from '@/lib/og/image';
 import { getExperimentForDocsPage } from '@/lib/docs/seo';
-import { appName, getPageImageUrl } from '@/lib/shared';
+import { getPageImageUrl } from '@/lib/shared';
+import { source } from '@/lib/source';
 
 export const revalidate = false;
 
-export async function GET(_req: Request, { params }: RouteContext<'/og/docs/[...slug]'>) {
+export async function GET(
+  _req: Request,
+  { params }: RouteContext<'/og/docs/[...slug]'>,
+) {
   const { slug } = await params;
   const page = source.getPage(slug.slice(0, -1));
   if (!page) notFound();
 
   const experiment = getExperimentForDocsPage(page);
-  const logoSrc = await getLogoDataUrl();
 
-  return generateOGImage({
+  return createOgImage({
     title: experiment?.title ?? page.data.title,
     description: experiment?.description ?? page.data.description,
-    site: appName,
-    primaryColor: 'rgba(0,112,243,0.45)',
-    primaryTextColor: 'rgb(0,112,243)',
-    icon: <img src={logoSrc} width={56} height={56} alt="" />,
+    category: experiment?.category,
+    difficulty: experiment?.difficulty,
+    eyebrow: experiment
+      ? 'Experiment · Docs'
+      : 'Documentation',
   });
 }
 

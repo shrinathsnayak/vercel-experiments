@@ -4,8 +4,8 @@ import { join } from 'node:path';
 /** Absolute public URL for the brand logo (SEO / JSON-LD). */
 export const logoPath = '/logo.png';
 
-/** Absolute public URL for the default Open Graph image. */
-export const defaultOgImagePath = '/og.png';
+/** Absolute public URL for the default Open Graph image (App Router image route). */
+export const defaultOgImagePath = '/opengraph-image';
 
 let logoDataUrlPromise: Promise<string> | undefined;
 
