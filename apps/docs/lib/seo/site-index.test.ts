@@ -19,6 +19,7 @@ function experiment(
     estimatedMinutes: 10,
     featured: false,
     phase: 1,
+    surface: 'mixed',
     requiredEnvironmentVariables: [],
     externalServices: [],
     securityNotes: [],
