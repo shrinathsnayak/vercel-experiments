@@ -12,6 +12,9 @@ describe('buildDeployUrl', () => {
     const url = buildDeployUrl({ stores: [BLOB_STORE] });
     expect(url).toContain('vercel.com/new/clone');
     expect(url).toContain('repository-url=');
+    expect(decodeURIComponent(url)).toContain(
+      'https://github.com/shrinathsnayak/vercel-experiments',
+    );
     expect(url).toContain('stores=');
     expect(decodeURIComponent(url)).toContain('"type":"blob"');
   });

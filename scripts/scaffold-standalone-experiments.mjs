@@ -1095,7 +1095,7 @@ export default config;
 
   writeFileSync(
     join(dir, 'README.md'),
-    `# ${slug}\n\nStandalone experiment from [vercel-experiments.com](https://github.com/vercel-experiments/vercel-experiments.com).\n\n\`\`\`bash\npnpm install\npnpm dev\n\`\`\`\n\nOpen http://localhost:3010\n`,
+    `# ${slug}\n\nStandalone experiment from [vercel-experiments.com](https://github.com/shrinathsnayak/vercel-experiments).\n\n\`\`\`bash\npnpm install\npnpm dev\n\`\`\`\n\nOpen http://localhost:3010\n`,
   );
 
   if (slug === 'cron-jobs-lab') {

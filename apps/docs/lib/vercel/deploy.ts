@@ -1,4 +1,6 @@
-const REPO_URL = 'https://github.com/vercel-experiments/vercel-experiments.com';
+import { githubUrl } from '@/lib/shared';
+
+const REPO_URL = githubUrl;
 
 export type DeployStore =
   | { type: 'blob'; access?: 'public' | 'private'; envVarPrefix?: string }

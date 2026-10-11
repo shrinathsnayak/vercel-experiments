@@ -1,6 +1,6 @@
 # feature-request-board
 
-Standalone experiment from [vercel-experiments.com](https://github.com/vercel-experiments/vercel-experiments.com).
+Standalone experiment from [vercel-experiments.com](https://github.com/shrinathsnayak/vercel-experiments).
 
 ```bash
 pnpm install

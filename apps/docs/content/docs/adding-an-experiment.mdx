@@ -5,7 +5,7 @@ description: Minimal workflow for registering a new experiment.
 
 ## Checklist
 
-1. Scaffold a standalone Next.js app under `apps/experiments/<slug>/` (see [EXPERIMENTS.md](https://github.com/vercel-experiments/vercel-experiments.com/blob/main/EXPERIMENTS.md)) with `demo.tsx`, `app/`, and local `ui/`.
+1. Scaffold a standalone Next.js app under `apps/experiments/<slug>/` (see [EXPERIMENTS.md](https://github.com/shrinathsnayak/vercel-experiments/blob/main/EXPERIMENTS.md)) with `demo.tsx`, `app/`, and local `ui/`.
 2. Put pure logic in `apps/experiments/<slug>/logic.ts` and add tests when useful.
 3. Add validated metadata in `apps/docs/lib/experiments/data.ts`, including `deploymentUrl: experimentDeployUrl('<slug>')`.
 4. Write docs under `apps/docs/content/docs/experiments/<slug>.mdx` with the same `title` and `description` as the registry (docs SEO, OG images, and JSON-LD reuse those fields). Follow the [documentation template](#documentation-template) below.
@@ -14,7 +14,7 @@ description: Minimal workflow for registering a new experiment.
 7. Link related experiments carefully - unpublished slugs are ignored.
 8. Run lint, typecheck, unit tests, hub build, and `pnpm build` inside the experiment folder.
 
-See also [EXPERIMENTS.md](https://github.com/vercel-experiments/vercel-experiments.com/blob/main/EXPERIMENTS.md) in the repository root.
+See also [EXPERIMENTS.md](https://github.com/shrinathsnayak/vercel-experiments/blob/main/EXPERIMENTS.md) in the repository root.
 
 ## Documentation template
 

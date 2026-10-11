@@ -10,9 +10,9 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const dataPath = join(root, 'apps/docs/lib/experiments/data.ts');
 const readmePath = join(root, 'README.md');
 
-const REPO = 'https://github.com/vercel-experiments/vercel-experiments.com';
+const REPO = 'https://github.com/shrinathsnayak/vercel-experiments';
 const SITE = 'https://vercel-experiments.com';
-const OWNER_REPO = 'vercel-experiments/vercel-experiments.com';
+const OWNER_REPO = 'shrinathsnayak/vercel-experiments';
 
 const CATEGORY_ORDER = [
   'ai',

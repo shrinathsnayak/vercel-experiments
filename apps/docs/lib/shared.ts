@@ -20,8 +20,8 @@ export const openApiRoute = '/openapi.json';
 export const markdownInternalRoute = '/markdown';
 
 export const gitConfig = {
-  user: 'vercel-experiments',
-  repo: 'vercel-experiments.com',
+  user: 'shrinathsnayak',
+  repo: 'vercel-experiments',
   branch: 'main',
 };
 
