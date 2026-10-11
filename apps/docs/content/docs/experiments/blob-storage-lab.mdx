@@ -1,0 +1,353 @@
+---
+title: Blob Storage Lab
+description: "Upload, list, and delete objects with Vercel Blob - one-click store provisioning on Deploy."
+---
+
+<ExperimentEmbed slug="blob-storage-lab" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+The Blob Storage Lab shows the full lifecycle of a small public object on [Vercel Blob](https://vercel.com/docs/vercel-blob): upload text from the browser, list recent uploads, open the CDN URL, and delete it. A single Route Handler (`app/api/blob/upload/route.ts`) wraps the `@vercel/blob` SDK (`put`, `list`, `del`), validates the input with Zod, and degrades to an honest `503` setup message when no Blob store is connected.
+
+## Features
+
+- **Upload from the browser.** The demo turns the textarea contents into a `File` (`text/plain`) and sends it as `multipart/form-data`.
+- **List recent uploads.** Shows up to 20 objects under the `experiments/blob-lab/` prefix, with pathname, size, and upload time.
+- **Delete with a guard.** Only URLs containing `/experiments/blob-lab/` can be deleted, so the demo cannot remove unrelated objects in the same store.
+- **Hard limits.** Uploads are capped at 256 KiB (`262144` bytes) and filenames are restricted to `[a-zA-Z0-9._-]`, 1–80 characters.
+- **Honest missing-config state.** Without `BLOB_READ_WRITE_TOKEN`, every method returns `503` with a `setup` hint and the UI shows a warning instead of failing silently.
+- **One-click provisioning.** The Deploy button passes a Blob store (`access: "public"`) so the token is injected for you.
+
+## API Reference
+
+All methods live at a single path and share the same availability check. If `BLOB_READ_WRITE_TOKEN` is unset, every method returns **`503`**.
+
+### GET /api/blob/upload
+
+Lists up to 20 blobs whose pathname starts with `experiments/blob-lab/`.
+
+<TypeTable
+  type={{
+    'Response 200': {
+      type: '{ blobs: BlobItem[] }',
+      description:
+        'Each item is { url, pathname, size, uploadedAt } taken from the list() result.',
+    },
+    'Response 503': {
+      type: '{ error, setup }',
+      description:
+        'error is "Vercel Blob is not configured"; setup says to add BLOB_READ_WRITE_TOKEN or deploy with the Blob store in one click.',
+    },
+  }}
+/>
+
+### POST /api/blob/upload
+
+Uploads one file with `multipart/form-data`. The stored pathname is `experiments/blob-lab/<Date.now()>-<filename>` with `access: "public"` and `addRandomSuffix: false`.
+
+<TypeTable
+  type={{
+    file: {
+      type: 'File',
+      required: true,
+      description: 'The object to upload. Must be a File and at most 262144 bytes.',
+    },
+    filename: {
+      type: 'string',
+      description:
+        'Stored filename. Falls back to file.name, then "upload.txt". Must match /^[a-zA-Z0-9._-]+$/ and be 1–80 characters.',
+    },
+    'Response 200': {
+      type: '{ url, pathname, contentType, size }',
+      description: 'size is file.size in bytes; url is the public CDN URL.',
+    },
+    'Response 400': {
+      type: '{ error }',
+      description: '"file is required" when no File is sent, or "Invalid filename".',
+    },
+    'Response 413': {
+      type: '{ error }',
+      description: '"Max upload size is 262144 bytes".',
+    },
+    'Response 503': {
+      type: '{ error, setup }',
+      description: 'Blob is not configured.',
+    },
+  }}
+/>
+
+### DELETE /api/blob/upload
+
+Deletes one blob by URL. Send a JSON body.
+
+<TypeTable
+  type={{
+    url: {
+      type: 'string (URL)',
+      required: true,
+      description: 'Full blob URL. Must contain "/experiments/blob-lab/".',
+    },
+    'Response 200': { type: '{ ok: true }' },
+    'Response 400': {
+      type: '{ error }',
+      description: '"Invalid JSON" when the body is not JSON, or "url required" when url is missing or not a valid URL.',
+    },
+    'Response 403': {
+      type: '{ error }',
+      description: '"Can only delete blob-lab uploads".',
+    },
+    'Response 503': {
+      type: '{ error }',
+      description: '"Vercel Blob is not configured" (no setup field on this method).',
+    },
+  }}
+/>
+
+## Implementation Details
+
+<Files>
+  <Folder name="apps/experiments/blob-storage-lab" defaultOpen>
+    <File name="demo.tsx" />
+    <File name="logic.ts" />
+    <File name="logic.test.ts" />
+  </Folder>
+  <Folder name="app/api/blob/upload" defaultOpen>
+    <File name="route.ts" />
+  </Folder>
+  <Folder name="lib/vercel">
+    <File name="services.ts" />
+    <File name="deploy.ts" />
+  </Folder>
+</Files>
+
+<Steps>
+<Step>
+
+### Detect the service before touching the SDK
+
+`getServiceStatus('blob')` in `lib/vercel/services.ts` reports Blob as available only when `BLOB_READ_WRITE_TOKEN` is set. Each handler checks it first and returns `503` otherwise.
+
+```ts
+const status = getServiceStatus('blob');
+if (!status.available) {
+  return NextResponse.json(
+    {
+      error: 'Vercel Blob is not configured',
+      setup: 'Add BLOB_READ_WRITE_TOKEN or deploy with the Blob store in one click.',
+    },
+    { status: 503 },
+  );
+}
+```
+
+</Step>
+<Step>
+
+### Validate size and filename
+
+The size cap is a constant, and the filename is validated with Zod before any write.
+
+```ts
+const MAX_BYTES = 256 * 1024;
+
+const metaSchema = z.object({
+  filename: z
+    .string()
+    .min(1)
+    .max(80)
+    .regex(/^[a-zA-Z0-9._-]+$/),
+});
+```
+
+`apps/experiments/blob-storage-lab/logic.ts` exports the same limit (`MAX_UPLOAD_BYTES`) and a matching `isAllowedFilename()` so the client can fail fast.
+
+</Step>
+<Step>
+
+### Write with `put()` under a fixed prefix
+
+All uploads go under `experiments/blob-lab/` with a timestamp so names do not collide.
+
+```ts
+const pathname = `experiments/blob-lab/${Date.now()}-${parsed.data.filename}`;
+const blob = await put(pathname, file, {
+  access: 'public',
+  addRandomSuffix: false,
+});
+```
+
+</Step>
+<Step>
+
+### List and delete within the prefix
+
+```ts
+const { blobs } = await list({ prefix: 'experiments/blob-lab/', limit: 20 });
+```
+
+```ts
+if (!url.data.url.includes('/experiments/blob-lab/')) {
+  return NextResponse.json({ error: 'Can only delete blob-lab uploads' }, { status: 403 });
+}
+
+await del(url.data.url);
+```
+
+</Step>
+<Step>
+
+### Drive it from the client
+
+`demo.tsx` loads the list on mount, treats a `503` as "not configured", and builds the upload from the textarea.
+
+```ts
+const file = new File([text], filename, { type: 'text/plain' });
+const form = new FormData();
+form.set('file', file);
+form.set('filename', filename);
+const res = await fetch('/api/blob/upload', { method: 'POST', body: form });
+```
+
+</Step>
+</Steps>
+
+## Use Cases
+
+- Avatars, attachments, and user-generated assets that should be served from a CDN URL.
+- Build artifacts, exports, and generated files (reports, PDFs, JSON snapshots) produced by Route Handlers or cron jobs.
+- A reference for guarded storage routes: fixed prefix, size cap, filename allow-list, and prefix-checked delete.
+- A starting point before moving to client uploads for larger files.
+
+## Limitations
+
+- **Small files only.** The route rejects anything over 256 KiB with `413`. Files go through your Route Handler, so this is not a large-file upload pattern.
+- **Public access.** Objects are written with `access: "public"`, so anyone with the URL can read them. Do not upload secrets or personal data.
+- **No authentication.** The demo route has no user check. Anyone who can reach the deployment can upload and delete lab files.
+- **Prefix check is a substring match.** Delete authorization is `url.includes('/experiments/blob-lab/')`, which is enough for a demo but is not a strict ownership check.
+- **List is capped.** `GET` returns at most 20 items and does not paginate.
+- **SDK errors are not caught.** If the token is present but invalid, or the Blob service errors, the exception from `put`, `list`, or `del` is not handled by the route.
+
+## Use in your project
+
+Minimal public upload route. Install the SDK with `pnpm add @vercel/blob` and provide `BLOB_READ_WRITE_TOKEN`.
+
+```ts
+// app/api/upload/route.ts
+import { put } from '@vercel/blob';
+import { NextResponse } from 'next/server';
+
+const MAX_BYTES = 256 * 1024;
+
+export async function POST(request: Request) {
+  const form = await request.formData();
+  const file = form.get('file');
+
+  if (!(file instanceof File)) {
+    return NextResponse.json({ error: 'file is required' }, { status: 400 });
+  }
+  if (file.size > MAX_BYTES) {
+    return NextResponse.json({ error: `Max upload size is ${MAX_BYTES} bytes` }, { status: 413 });
+  }
+
+  const blob = await put(`uploads/${Date.now()}-${file.name}`, file, {
+    access: 'public',
+    addRandomSuffix: false,
+  });
+
+  return NextResponse.json({ url: blob.url, pathname: blob.pathname, size: file.size });
+}
+```
+
+Add authentication and your own filename policy before using this in production.
+
+## Deployment
+
+<ExperimentDeployButton slug="blob-storage-lab" />
+
+
+Use the one-click Deploy button below. It clones the repository and provisions a public Vercel Blob store, which injects `BLOB_READ_WRITE_TOKEN` into the new project.
+
+<Cards>
+  <Card
+    title="Deploy with a Blob store"
+    href="https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fvercel-experiments%2Fvercel-experiments.com&project-name=vercel-experiments&repository-name=vercel-experiments&stores=%5B%7B%22type%22%3A%22blob%22%2C%22access%22%3A%22public%22%7D%5D"
+  >
+    Clones the repo and creates a Blob store with `access: "public"`.
+  </Card>
+</Cards>
+
+The site-wide platform Deploy button also includes a Blob store, along with Upstash Redis and Neon.
+
+## Local Development
+
+```bash
+pnpm install
+pnpm dev
+```
+
+Without a token the lab runs but shows the `503` warning. To use a real store, link the project and pull its variables (or paste the token manually):
+
+```bash
+vercel env pull .env.local
+# or
+echo 'BLOB_READ_WRITE_TOKEN=vercel_blob_rw_...' >> .env.local
+```
+
+Try the API directly (default port `3000`):
+
+```bash
+# List
+curl http://localhost:3000/api/blob/upload
+
+# Upload
+curl -X POST http://localhost:3000/api/blob/upload \
+  -F "file=@./hello.txt;type=text/plain" \
+  -F "filename=hello.txt"
+
+# Delete (use a url returned by the upload or list call)
+curl -X DELETE http://localhost:3000/api/blob/upload \
+  -H "content-type: application/json" \
+  -d '{"url":"https://<store>.public.blob.vercel-storage.com/experiments/blob-lab/<file>"}'
+```
+
+Expected response when no token is set:
+
+```json
+{
+  "error": "Vercel Blob is not configured",
+  "setup": "Add BLOB_READ_WRITE_TOKEN or deploy with the Blob store in one click."
+}
+```
+
+## Configuration
+
+From `.env.example`:
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `BLOB_READ_WRITE_TOKEN` | Yes, for live uploads | Read/write token for the Vercel Blob store. Injected automatically when the store is provisioned. |
+
+Constants in `app/api/blob/upload/route.ts`: `MAX_BYTES = 256 * 1024`, prefix `experiments/blob-lab/`, list `limit: 20`.
+
+## Vercel / Next.js Features Used
+
+- **Vercel Blob** (`@vercel/blob`): `put`, `list`, and `del`.
+- **Route Handlers** with `GET`, `POST`, and `DELETE` exports and `request.formData()`.
+- **Deploy Button `stores` parameter** (`BLOB_STORE` in `lib/vercel/deploy.ts`) for one-click Blob provisioning.
+- **Zod** for filename and DELETE body validation.
+
+## Next Steps
+
+<Cards>
+  <Card title="Image Optimization Lab" href="/docs/experiments/image-optimization-lab">
+    Tune `next/image` quality and sizes against a real optimized asset.
+  </Card>
+  <Card title="Cron Jobs Lab" href="/docs/experiments/cron-jobs-lab">
+    Persist scheduled heartbeat runs to Blob when Redis is absent.
+  </Card>
+  <Card title="Redis Cache Lab" href="/docs/experiments/redis-cache-lab">
+    Cache short-lived values with TTL instead of storing objects.
+  </Card>
+</Cards>

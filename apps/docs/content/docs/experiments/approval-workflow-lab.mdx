@@ -1,0 +1,90 @@
+---
+title: Approval Workflow Lab
+description: Draft - pending - approve/reject via opaque tokens. Neon/memory state machine with honest fallbacks.
+---
+
+<ExperimentEmbed slug="approval-workflow-lab" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+Approval Workflow Lab is a Wave 3 Batch H composition lab. Pure helpers live in `logic.ts`; missing providers or stores degrade honestly (never fabricate AI output).
+
+## Features
+
+- State machine: draft - pending - approved|rejected
+- Opaque approve/reject tokens
+- Neon or in-memory persistence
+
+## API Reference
+
+### `POST /api/workflow · POST /api/decide · GET /api/workflow`
+
+```json
+{ "title": "Ship pricing page", "body": "…" }
+```
+
+| Status | Cause |
+| --- | --- |
+| `200` | Success |
+| `400` | Invalid transition / missing fields |
+| `404` | Unknown item or token |
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### Validate
+
+Inputs are length-capped in `logic.ts`; APIs return `400` for missing fields.
+
+</Step>
+<Step>
+
+### Run
+
+Route Handlers compose AI SDK, Redis/Neon, or `ImageResponse` as documented. Fallbacks include honest notes.
+
+</Step>
+</Steps>
+
+## Limitations
+
+- Not a production IAM / SSO system.
+- No email delivery of tokens.
+- Memory mode resets on cold start.
+
+## Use in your project
+
+Copy the Route Handler(s) and `logic.ts` from `apps/experiments/approval-workflow-lab/`.
+
+## Deployment
+
+<ExperimentDeployButton slug="approval-workflow-lab" />
+
+## Local Development
+
+```bash
+cd apps/experiments/approval-workflow-lab
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `DATABASE_URL` | No | Neon persistence |
+
+## Next Steps
+
+<Cards>
+  <Card title="Human In The Loop Lab" href="/docs/experiments/human-in-the-loop-lab">
+    Related experiment.
+  </Card>
+  <Card title="Waitlist Viral Lab" href="/docs/experiments/waitlist-viral-lab">
+    Related experiment.
+  </Card>
+</Cards>

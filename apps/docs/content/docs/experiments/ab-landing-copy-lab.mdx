@@ -1,0 +1,116 @@
+---
+title: A/B Landing Copy Lab
+description: AI generates two headlines, sticky cookie buckets assign A/B, and Redis/memory tracks impressions and conversions.
+---
+
+<ExperimentEmbed slug="ab-landing-copy-lab" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+A/B Landing Copy Lab uses `generateObject` to create two headlines, assigns visitors to sticky cookie buckets (`Set-Cookie`), and records impression/conversion counters in Redis or memory. Missing AI keys return `503`.
+
+## Features
+
+- **Two headlines** – A/B variants from a product topic.
+- **Sticky cookie bucket** – `ab_landing_bucket` via `Set-Cookie`.
+- **Funnel counters** – impressions + conversions with rates.
+- **Honest `503`** when AI is not configured.
+
+## Server Reference
+
+### `POST /api/generate`
+
+```json
+{ "topic": "..." }
+```
+
+### `GET /api/assign`
+
+Returns `{ bucket, headline }` and sets cookie when new.
+
+### `POST /api/event`
+
+```json
+{ "bucket": "A", "type": "impression" }
+```
+
+### `GET /api/stats`
+
+Funnel totals + conversion rates.
+
+| Status | Cause |
+| --- | --- |
+| `503` | No AI provider (generate) |
+| `400` | Invalid event payload |
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### Generate
+
+`generateObject` for headlines A and B.
+
+</Step>
+<Step>
+
+### Assign + measure
+
+Cookie sticky bucket; Redis/memory counters.
+
+</Step>
+</Steps>
+
+## Use Cases
+
+- Learn AI + cookie cohort composition.
+- Prototype landing copy experiments.
+
+## Limitations
+
+- Demo-scale counters; not a stats platform.
+- No significance testing.
+
+## Use in your project
+
+Copy handlers from `apps/experiments/ab-landing-copy-lab/`.
+
+## Deployment
+
+<ExperimentDeployButton slug="ab-landing-copy-lab" />
+
+## Local Development
+
+```bash
+cd apps/experiments/ab-landing-copy-lab
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `AI_GATEWAY_API_KEY` | Yes (or `OPENAI_API_KEY`) | Headline generation |
+| `UPSTASH_REDIS_REST_URL` / `TOKEN` | No | Durable funnel stats |
+
+## Vercel / Next.js Features Used
+
+- AI SDK `generateObject`
+- Cookies / `Set-Cookie`
+- Upstash Redis
+- Route Handlers
+
+## Next Steps
+
+<Cards>
+  <Card title="A/B Testing Lab" href="/docs/experiments/ab-testing-lab">
+    Sticky cohorts without AI copy.
+  </Card>
+  <Card title="Vercel Flags Lab" href="/docs/experiments/vercel-flags-lab">
+    Platform-native flag evaluation.
+  </Card>
+</Cards>

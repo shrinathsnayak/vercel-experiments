@@ -1,0 +1,83 @@
+---
+title: Tool-Calling Weather Demo
+description: Chat with mock weather, time, and calculator tools plus a visible tool-call trace via the AI SDK.
+---
+
+<ExperimentEmbed slug="tool-calling-weather-demo" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+Chat that calls mock weather, time, and calculator tools and surfaces a structured tool-call trace. Missing AI keys return `503`.
+
+## Features
+
+- Standalone Next.js app under `apps/experiments/tool-calling-weather-demo/`.
+- Honest degradation when optional services are missing.
+- Unit-tested helpers in `logic.ts`.
+
+## Server Reference
+
+### `POST /api/chat`
+
+```
+{ "prompt": "..." }
+```
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### Run the demo
+
+Use the embedded playground or `pnpm dev` in the experiment app.
+
+</Step>
+<Step>
+
+### Inspect the handlers
+
+Copy Route Handlers from `apps/experiments/tool-calling-weather-demo/` into your project.
+
+</Step>
+</Steps>
+
+## Limitations
+
+- Educational demo — not a production-hardened product.
+- Inputs are length-capped.
+
+## Use in your project
+
+Copy the experiment folder or individual Route Handlers.
+
+## Deployment
+
+<ExperimentDeployButton slug="tool-calling-weather-demo" />
+
+## Local Development
+
+```bash
+cd apps/experiments/tool-calling-weather-demo
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `AI_GATEWAY_API_KEY` | Yes | Lab configuration |
+
+## Vercel / Next.js Features Used
+
+- AI SDK, AI Gateway, Zod
+
+## Next Steps
+
+<Cards>
+  <Card title="ai-streaming-lab" href="/docs/experiments/ai-streaming-lab">Related lab.</Card>
+  <Card title="mcp-tools-lab" href="/docs/experiments/mcp-tools-lab">Related lab.</Card>
+</Cards>

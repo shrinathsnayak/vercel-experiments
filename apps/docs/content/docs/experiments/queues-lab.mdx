@@ -1,0 +1,155 @@
+---
+title: Queues Lab
+description: Publish to a durable Vercel Queues topic and process messages with a private push consumer.
+---
+
+<ExperimentEmbed slug="queues-lab" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+The Queues Lab demonstrates [Vercel Queues](https://vercel.com/docs/queues) (public beta): durable topics, fan-out consumer groups, and at-least-once delivery with retries. Producers call `send()` from `@vercel/queue`. A private consumer uses `handleCallback` and is registered with `experimentalTriggers` type `queue/v2beta` in `vercel.json`.
+
+## Features
+
+- **Live publish.** `POST /api/queues/publish` with `mode: "live"` calls `send('experiments-orders', payload)`.
+- **Private fulfill consumer.** `app/api/queues/fulfill/route.ts` records processed messages when Queues invokes it.
+- **Simulator mode.** In-memory fan-out across `fulfillment` and `analytics` groups, plus idempotency-key dedupe, for local learning without OIDC.
+- **Honest errors.** Missing OIDC returns `503` with setup requirements instead of inventing message ids.
+
+## API Reference
+
+### `POST /api/queues/publish`
+
+<TypeTable
+  type={{
+    orderId: {
+      type: 'string',
+      description: 'Order id placed in the message payload.',
+    },
+    idempotencyKey: {
+      type: 'string (optional)',
+      description: 'Dedupes publishes for the message retention window.',
+    },
+    mode: {
+      type: '"live" | "simulator"',
+      description: 'live uses @vercel/queue; simulator uses in-memory TopicSimulator.',
+    },
+  }}
+/>
+
+### `GET /api/queues/publish`
+
+Returns the topic name, recent processed entries, and simulator backlog.
+
+### Consumer (`POST` fulfill)
+
+Configured only via Queues push - not a public webhook:
+
+```json title="apps/experiments/queues-lab/vercel.json"
+{
+  "functions": {
+    "app/api/queues/fulfill/route.ts": {
+      "experimentalTriggers": [
+        { "type": "queue/v2beta", "topic": "experiments-orders" }
+      ]
+    }
+  }
+}
+```
+
+## Implementation Details
+
+Producer (live path):
+
+```ts title="apps/experiments/queues-lab/app/api/queues/publish/route.ts"
+const { send } = await import('@vercel/queue');
+const result = await send(QUEUE_TOPIC, payload, idempotencyKey
+  ? { idempotencyKey }
+  : undefined);
+```
+
+Consumer:
+
+```ts title="apps/experiments/queues-lab/app/api/queues/fulfill/route.ts"
+export const POST = handleCallback(async (order, metadata) => {
+  recordProcessed({
+    messageId: metadata.messageId,
+    orderId: order.orderId ?? 'unknown',
+    receivedAt: new Date().toISOString(),
+    source: 'queue-callback',
+  });
+});
+```
+
+`TopicSimulator` in `logic.ts` models fan-out and retry/expire behaviour for the educational path.
+
+## Use Cases
+
+- Offload email, PDF, or provider calls after a fast HTTP response
+- Absorb traffic spikes with buffered processing
+- Fan out one event stream to independent pipelines (analytics vs fulfillment)
+
+## Limitations
+
+- Queues is in public beta; APIs and limits can change.
+- Live mode needs OIDC (`vercel link` + `vercel env pull`) or a Vercel deployment.
+- The in-memory log resets on cold start - it is not durable storage.
+- Prefer [Workflows](/docs/experiments/workflows-lab) when you need multi-step durable orchestration with sleep/hooks.
+
+## Use in your project
+
+1. `pnpm add @vercel/queue`
+2. Publish with `send(topic, payload)`
+3. Add a `handleCallback` route and `experimentalTriggers` in `vercel.json`
+4. Keep handlers idempotent
+
+## Deployment
+
+<ExperimentDeployButton slug="queues-lab" />
+
+After deploy, publish with the UI (live mode) or curl, then check Observability - Queues and the recent-processed list in the demo.
+
+## Local Development
+
+```bash
+cd apps/experiments/queues-lab
+pnpm install
+vercel link && vercel env pull
+pnpm dev
+```
+
+Use **simulator** mode without OIDC. Unit tests:
+
+```bash
+pnpm vitest run ../experiments/queues-lab
+```
+
+## Configuration
+
+| Setup | Required | Notes |
+| --- | --- | --- |
+| OIDC via `vercel env pull` | Live publish/consume | Automatic on Vercel |
+| `vercel.json` queue trigger | Consumer | Already included |
+
+## Vercel / Next.js Features Used
+
+- [Vercel Queues](https://vercel.com/docs/queues)
+- [`@vercel/queue` SDK](https://vercel.com/docs/queues/quickstart) (`send`, `handleCallback`)
+- Next.js Route Handlers
+- Function `experimentalTriggers`
+
+## Next Steps
+
+<Cards>
+  <Card title="Workflows Lab" href="/docs/experiments/workflows-lab">
+    Higher-level durable steps and sleep built on Queues.
+  </Card>
+  <Card title="Cron Jobs Lab" href="/docs/experiments/cron-jobs-lab">
+    Time-based triggers when you need a schedule instead of a topic.
+  </Card>
+  <Card title="Queues quickstart" href="https://vercel.com/docs/queues/quickstart">
+    Official producer + consumer setup guide.
+  </Card>
+</Cards>

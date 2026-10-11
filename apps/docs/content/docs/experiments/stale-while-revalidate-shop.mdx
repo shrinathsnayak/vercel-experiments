@@ -1,0 +1,83 @@
+---
+title: Stale-While-Revalidate Shop
+description: Catalog API with SWR Cache-Control headers, Redis/memory backing, and a freshness timeline.
+---
+
+<ExperimentEmbed slug="stale-while-revalidate-shop" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+Shop catalog route demonstrating `stale-while-revalidate` headers with Redis or memory backing.
+
+## Features
+
+- Standalone Next.js app under `apps/experiments/stale-while-revalidate-shop/`.
+- Honest degradation when optional services are missing.
+- Unit-tested helpers in `logic.ts`.
+
+## API Reference
+
+### `GET /api/catalog`
+
+```
+(no body)
+```
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### Run the demo
+
+Use the embedded playground or `pnpm dev` in the experiment app.
+
+</Step>
+<Step>
+
+### Inspect the handlers
+
+Copy Route Handlers from `apps/experiments/stale-while-revalidate-shop/` into your project.
+
+</Step>
+</Steps>
+
+## Limitations
+
+- Educational demo — not a production-hardened product.
+- Inputs are length-capped.
+
+## Use in your project
+
+Copy the experiment folder or individual Route Handlers.
+
+## Deployment
+
+<ExperimentDeployButton slug="stale-while-revalidate-shop" />
+
+## Local Development
+
+```bash
+cd apps/experiments/stale-while-revalidate-shop
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| — | — | No required secrets |
+
+## Vercel / Next.js Features Used
+
+- Next.js, Upstash Redis, Cache-Control
+
+## Next Steps
+
+<Cards>
+  <Card title="cache-behavior-explorer" href="/docs/experiments/cache-behavior-explorer">Related lab.</Card>
+  <Card title="redis-cache-lab" href="/docs/experiments/redis-cache-lab">Related lab.</Card>
+</Cards>

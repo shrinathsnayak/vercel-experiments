@@ -1,0 +1,313 @@
+---
+title: Global Config Lab
+description: "Read ultra-low-latency configuration from Vercel Global Config for flags and kill switches."
+---
+
+<ExperimentEmbed slug="global-config-lab" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+The Global Config Lab reads key/value data from a [Vercel Global Config](https://vercel.com/docs/edge-config) store through the `@vercel/global-config` SDK. It is built for the kind of data you want to change without a redeploy and read on every request: feature flags, kill switches, and small runtime settings. The lab is read-only. You create and edit values in the Vercel dashboard (or API), then read them back here by key or as a full snapshot.
+
+## Features
+
+- **Read one key.** Type a key (suggestions: `greeting`, `maintenanceMode`, `featureCheckoutV2`) and read its JSON value.
+- **Snapshot the store.** Load every item with a single call and see the key count and JSON.
+- **Batch reads.** `POST` accepts up to 20 keys and returns an `entries` map.
+- **Local fallback values.** When the store is not configured, the `503` response includes `demoDefaults` so the UI still has something to show.
+- **Legacy-friendly detection.** Either `GLOBAL_CONFIG` or the older `EDGE_CONFIG` variable marks the service as available.
+- **Read-only by design.** The route never writes to the store.
+
+## API Reference
+
+Everything is served from one path. If neither `GLOBAL_CONFIG` nor `EDGE_CONFIG` is set, every method returns **`503`**.
+
+### GET /api/global-config
+
+Reads a single key, or all items when no key is given.
+
+<TypeTable
+  type={{
+    key: {
+      type: 'string (query)',
+      description:
+        'Key to read. Omit it (or pass an empty value) to return all items.',
+    },
+    'Response 200 (with key)': {
+      type: '{ key, value, source: "global-config" }',
+      description:
+        'value is whatever get(key) returns. A missing key yields undefined, so the value field is absent from the JSON.',
+    },
+    'Response 200 (no key)': {
+      type: '{ items, source: "global-config" }',
+      description: 'items is the object returned by getAll().',
+    },
+    'Response 503': {
+      type: '{ error, setup, demoDefaults }',
+      description:
+        'error is "Global Config is not configured". setup explains how to create the store and run vercel env pull. demoDefaults is { maintenanceMode: false, greeting: "hello from local fallback", featureCheckoutV2: true }.',
+    },
+  }}
+/>
+
+### POST /api/global-config
+
+Reads several keys in one request. The body is optional; invalid or empty JSON is treated as `{}`.
+
+<TypeTable
+  type={{
+    keys: {
+      type: 'string[]',
+      description:
+        'Up to 20 keys, each 1–64 characters. If omitted or empty, the response is the full snapshot.',
+    },
+    'Response 200 (with keys)': {
+      type: '{ entries: Record<string, unknown>, source }',
+      description: 'One entry per requested key, read sequentially with get().',
+    },
+    'Response 200 (no keys)': {
+      type: '{ items, source }',
+      description: 'Same shape as GET without a key.',
+    },
+    'Response 400': {
+      type: '{ error }',
+      description:
+        '"Invalid body" when keys violates the schema (wrong type, more than 20 entries, or a key outside 1–64 characters).',
+    },
+    'Response 503': {
+      type: '{ error }',
+      description:
+        '"Global Config is not configured". Unlike GET, POST does not include setup or demoDefaults.',
+    },
+  }}
+/>
+
+## Implementation Details
+
+<Files>
+  <Folder name="apps/experiments/global-config-lab" defaultOpen>
+    <File name="demo.tsx" />
+    <File name="logic.ts" />
+    <File name="logic.test.ts" />
+  </Folder>
+  <Folder name="app/api/global-config" defaultOpen>
+    <File name="route.ts" />
+  </Folder>
+  <Folder name="lib/vercel">
+    <File name="services.ts" />
+  </Folder>
+</Files>
+
+<Steps>
+<Step>
+
+### Detect the store
+
+`getServiceStatus('global-config')` treats the service as available when `GLOBAL_CONFIG` or `EDGE_CONFIG` is set (see `lib/vercel/services.ts`). When missing, the route returns `503` and ships local defaults so the demo UI can still render.
+
+```ts
+const status = getServiceStatus('global-config');
+if (!status.available) {
+  return NextResponse.json(
+    {
+      error: 'Global Config is not configured',
+      setup:
+        'Create a Global Config store in the Vercel dashboard (Storage - Global Config) and pull GLOBAL_CONFIG with `vercel env pull`.',
+      demoDefaults: {
+        maintenanceMode: false,
+        greeting: 'hello from local fallback',
+        featureCheckoutV2: true,
+      },
+    },
+    { status: 503 },
+  );
+}
+```
+
+</Step>
+<Step>
+
+### Read one key or everything
+
+```ts
+import { get, getAll } from '@vercel/global-config';
+
+const key = new URL(request.url).searchParams.get('key');
+if (key) {
+  const value = await get(key);
+  return NextResponse.json({ key, value, source: 'global-config' });
+}
+
+const all = await getAll();
+return NextResponse.json({ items: all, source: 'global-config' });
+```
+
+</Step>
+<Step>
+
+### Validate batch reads
+
+`POST` uses a small Zod schema so a caller cannot ask for an unbounded number of keys.
+
+```ts
+const readSchema = z.object({
+  keys: z.array(z.string().min(1).max(64)).max(20).optional(),
+});
+```
+
+</Step>
+<Step>
+
+### Summarize on the client
+
+`apps/experiments/global-config-lab/logic.ts` provides `summarizeConfig()` (sorted keys and a count) and the suggested keys used by the input datalist. When the API returns `503`, the demo switches to `demoDefaults` and shows a warning instead of a connected state.
+
+```ts
+export function summarizeConfig(items: ConfigSnapshot | null | undefined) {
+  if (!items || typeof items !== 'object') {
+    return { keyCount: 0, keys: [] };
+  }
+  const keys = Object.keys(items).sort((a, b) => a.localeCompare(b));
+  return { keyCount: keys.length, keys };
+}
+```
+
+</Step>
+</Steps>
+
+## Use Cases
+
+- **Kill switches.** Flip `maintenanceMode` in the dashboard and read it in a Route Handler or proxy without redeploying.
+- **Feature flags.** Gate behavior like `featureCheckoutV2` by reading a boolean at request time.
+- **Runtime copy and settings.** Banner text, redirect targets, allow-lists, and other small JSON values that change independently of code.
+- **A bridge to your own flag system.** The Feature Flag Playground can read live definitions from Global Config, so the two labs pair well.
+
+## Limitations
+
+- **Read-only.** This lab never writes. Create the store and edit keys in the Vercel dashboard or API.
+- **Slower locally.** Production reads are optimized by the platform, but local development reads over the public internet, so latency is higher in `pnpm dev`.
+- **Small data.** Global Config is intended for configuration, not for application data or large documents.
+- **Sequential batch reads.** `POST` with `keys` calls `get()` once per key in a loop; the 20-key cap keeps this bounded.
+- **No auth on the demo route.** Anyone who can reach the deployment can read every item in the connected store, so do not put secrets in it.
+- **Missing keys.** `get()` returns `undefined` for unknown keys, which JSON serialization drops. The demo UI shows this as `undefined`.
+
+## Use in your project
+
+Read a flag in a Route Handler. Install with `pnpm add @vercel/global-config`, then pull the connection string with `vercel env pull`.
+
+```ts
+// app/api/greeting/route.ts
+import { get } from '@vercel/global-config';
+
+export async function GET() {
+  const [greeting, maintenanceMode] = await Promise.all([
+    get<string>('greeting'),
+    get<boolean>('maintenanceMode'),
+  ]);
+
+  if (maintenanceMode) {
+    return Response.json({ error: 'Down for maintenance' }, { status: 503 });
+  }
+
+  return Response.json({ greeting });
+}
+```
+
+## Deployment
+
+<ExperimentDeployButton slug="global-config-lab" />
+
+
+1. Create a Global Config store in the Vercel dashboard (**Storage - Global Config**) and connect it to your project. This provides `GLOBAL_CONFIG`.
+2. Add the keys you want to read, for example `greeting`, `maintenanceMode`, and `featureCheckoutV2`.
+3. Deploy with the platform button below, or redeploy your existing project so the variable is available.
+
+<Cards>
+  <Card
+    title="Platform Deploy button"
+    href="https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fvercel-experiments%2Fvercel-experiments.com&project-name=vercel-experiments&repository-name=vercel-experiments&stores=%5B%7B%22type%22%3A%22blob%22%2C%22access%22%3A%22public%22%7D%2C%7B%22type%22%3A%22integration%22%2C%22integrationSlug%22%3A%22upstash%22%2C%22productSlug%22%3A%22redis%22%2C%22protocol%22%3A%22storage%22%7D%2C%7B%22type%22%3A%22integration%22%2C%22integrationSlug%22%3A%22neon%22%2C%22productSlug%22%3A%22neon%22%2C%22protocol%22%3A%22storage%22%7D%5D&env=AI_GATEWAY_API_KEY%2CNEXT_PUBLIC_SITE_URL&envDescription=Optional+secrets+for+live+demos.+Marketplace+stores+inject+their+own+credentials."
+  >
+    Clones the repo with Blob, Upstash Redis, and Neon stores. Global Config is a separate store: create it in the dashboard and link it to the project.
+  </Card>
+</Cards>
+
+<Callout type="info">
+  The Deploy button does not provision Global Config. This experiment uses the platform button (`platformDeployUrl`) and expects you to add the store yourself.
+</Callout>
+
+## Local Development
+
+```bash
+pnpm install
+pnpm dev
+```
+
+Link the project and pull the connection string:
+
+```bash
+vercel env pull .env.local
+# or set it manually
+echo 'GLOBAL_CONFIG=<connection-string>' >> .env.local
+```
+
+Try the API (default port `3000`):
+
+```bash
+# Full snapshot
+curl http://localhost:3000/api/global-config
+
+# One key
+curl "http://localhost:3000/api/global-config?key=greeting"
+
+# Batch read
+curl -X POST http://localhost:3000/api/global-config \
+  -H "content-type: application/json" \
+  -d '{"keys":["greeting","maintenanceMode","featureCheckoutV2"]}'
+```
+
+Expected response when the store is missing:
+
+```json
+{
+  "error": "Global Config is not configured",
+  "setup": "Create a Global Config store in the Vercel dashboard (Storage - Global Config) and pull GLOBAL_CONFIG with `vercel env pull`.",
+  "demoDefaults": {
+    "maintenanceMode": false,
+    "greeting": "hello from local fallback",
+    "featureCheckoutV2": true
+  }
+}
+```
+
+## Configuration
+
+From `.env.example`:
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `GLOBAL_CONFIG` | Yes, for live reads | Global Config connection string. Also accepts legacy `EDGE_CONFIG` for older projects. |
+
+Limits in `app/api/global-config/route.ts`: at most 20 keys per `POST`, each 1–64 characters.
+
+## Vercel / Next.js Features Used
+
+- **Vercel Global Config** (`@vercel/global-config`): `get` and `getAll`.
+- **Route Handlers** with `GET` and `POST` exports and `URLSearchParams` query parsing.
+- **`vercel env pull`** to sync the connection string for local development.
+- **Zod** for batch-read validation.
+
+## Next Steps
+
+<Cards>
+  <Card title="Vercel Flags Lab" href="/docs/experiments/vercel-flags-lab">
+    Platform-native Flags SDK evaluation with entity targeting.
+  </Card>
+  <Card title="Environment Variable Inspector" href="/docs/experiments/environment-variable-inspector">
+    Learn which variables are public, server-only, or invalid.
+  </Card>
+  <Card title="Redis Cache Lab" href="/docs/experiments/redis-cache-lab">
+    Store short-lived values with a TTL instead of static config.
+  </Card>
+</Cards>

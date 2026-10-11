@@ -1,0 +1,70 @@
+---
+title: Price Watch Lab
+description: Track pasted product/price targets with AI notes and Redis/memory watch list.
+---
+
+<ExperimentEmbed slug="price-watch-lab" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+Price Watch Lab is a Batch G vertical mini composition lab. Pure helpers live in `logic.ts`; AI calls return an honest `503` when no provider is configured.
+
+## Features
+
+- parsePrice helper
+- Redis/memory watch list
+- AI notes without fake markets
+
+## Server Reference
+
+### `POST /api/watch`
+
+```json
+{ "watch": "..." }
+```
+
+| Status | Cause |
+| --- | --- |
+| `200` | Success (or stream) |
+| `400` | Missing / invalid input |
+| `503` | No AI provider (`AI_GATEWAY_API_KEY` or `OPENAI_API_KEY`) |
+
+Optional Redis persistence endpoints degrade to in-memory when unset.
+
+
+## Limitations
+
+- No guaranteed price scrape.
+- Educational only.
+- Memory fallback cold-starts.
+
+## Deployment
+
+<ExperimentDeployButton slug="price-watch-lab" />
+
+## Local Development
+
+```bash
+cd apps/experiments/price-watch-lab
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `AI_GATEWAY_API_KEY` | Yes (or OpenAI) | Preferred AI provider |
+| `OPENAI_API_KEY` | No | Fallback |
+| `AI_MODEL` | No | Model override |
+| `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | No | Persistence |
+
+
+## Next Steps
+
+<Cards>
+  <Card title="Redis Cache Lab" href="/docs/experiments/redis-cache-lab">Related experiment.</Card>
+  <Card title="Link Preview Enricher" href="/docs/experiments/link-preview-enricher">Related experiment.</Card>
+</Cards>

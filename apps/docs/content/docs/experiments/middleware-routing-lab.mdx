@@ -1,0 +1,361 @@
+---
+title: Middleware and Routing Lab
+description: Configure rewrites, redirects, locale and header routing, then inspect deterministic request decisions.
+---
+
+<ExperimentEmbed slug="middleware-routing-lab" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+The Middleware and Routing Lab is a client-only simulator for the kind of decisions a Next.js Proxy makes before a route renders. You enter a request path, edit an ordered list of rules (`rewrite`, `redirect`, `locale`, `header`, `cookie`, `feature-flag`), and the lab shows the resulting decision as JSON: the action, the final pathname, status code, headers and cookies to set, and which rules matched.
+
+It is written in plain TypeScript and React. The problem it teaches is how routing rules compose: first-match versus last-write-wins, how patterns match paths, and how a rewrite differs from a redirect. It does **not** execute your real `proxy.ts`, and it uses current Next.js terminology ("Proxy", formerly "Middleware").
+
+## Features
+
+- **Six rule types** – `rewrite`, `redirect`, `locale`, `header`, `cookie`, and `feature-flag`.
+- **Ordered, toggleable rules** – every rule has an enabled checkbox; disabled rules are skipped.
+- **Simple path patterns** – exact match, trailing `*` prefix match, or `*` for everything.
+- **Deterministic decisions** – the same rules and path always yield the same JSON output; there is no network, clock, or randomness.
+- **Matched-rule trace** – every rule that contributed to the decision is listed with a human-readable detail.
+- **Editable rule table** – add rules, change type, match, and value live.
+- **Unit-tested logic** – `evaluateRequest` has Vitest coverage for rewrites and flag-based blocking.
+
+## UI Reference
+
+There are no API routes for this experiment. The demo is a client component and calls `evaluateRequest` directly.
+
+### Rule shape
+
+<TypeTable
+  type={{
+    id: {
+      description: "Unique rule identifier. Seed rules use `1`, `2`, `3`; added rules use `crypto.randomUUID()`.",
+      type: "string",
+      required: true,
+    },
+    type: {
+      description: "What the rule does when it matches.",
+      type: "'rewrite' | 'redirect' | 'locale' | 'header' | 'cookie' | 'feature-flag'",
+      required: true,
+    },
+    match: {
+      description: "Path pattern: `*` (any path), `/prefix*` (starts with), or an exact path. For `header` and `cookie` rules it is also used as the header or cookie name (see Limitations).",
+      type: "string",
+      required: true,
+    },
+    value: {
+      description: "Rule argument: target path for `rewrite`/`redirect`, locale for `locale`, header or cookie value, or `on`/`off` for `feature-flag`.",
+      type: "string",
+      required: true,
+    },
+    enabled: {
+      description: "Disabled rules are ignored.",
+      type: "boolean",
+      required: true,
+    },
+  }}
+/>
+
+### Decision shape
+
+<TypeTable
+  type={{
+    action: {
+      description: "Overall outcome. Starts as `next` and is overwritten by later rules.",
+      type: "'next' | 'rewrite' | 'redirect' | 'block'",
+    },
+    pathname: {
+      description: "Final pathname after rewrite or redirect. Equals the input path when nothing rewrote it.",
+      type: "string",
+    },
+    status: {
+      description: "`307` for redirects, `404` for blocked feature flags. Absent otherwise.",
+      type: "number",
+    },
+    setHeaders: {
+      description: "Headers the Proxy would set on the response.",
+      type: "Record<string, string>",
+    },
+    setCookies: {
+      description: "Cookies the Proxy would set.",
+      type: "Record<string, string>",
+    },
+    matchedRules: {
+      description: "Trace of matching rules in evaluation order.",
+      type: "Array<{ ruleId: string; type: RuleType; detail: string }>",
+    },
+  }}
+/>
+
+### Default rules and example output
+
+The lab starts with these rules:
+
+```ts
+export const defaultRules: RoutingRule[] = [
+  { id: '1', type: 'rewrite', match: '/docs*', value: '/content/docs', enabled: true },
+  { id: '2', type: 'locale', match: '/', value: 'en-US', enabled: true },
+  { id: '3', type: 'feature-flag', match: '*', value: 'on', enabled: true },
+];
+```
+
+For the request path `/docs/guide` the decision is:
+
+```json
+{
+  "action": "rewrite",
+  "pathname": "/content/docs",
+  "setHeaders": {},
+  "setCookies": {},
+  "matchedRules": [
+    { "ruleId": "1", "type": "rewrite", "detail": "Rewrite to /content/docs" },
+    { "ruleId": "3", "type": "feature-flag", "detail": "Feature * = on" }
+  ]
+}
+```
+
+Set the request path to `/` and the `locale` rule matches instead, adding `x-locale: en-US`.
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### Match the path
+
+`pathMatches` supports three forms: `*`, a trailing-`*` prefix, and an exact string.
+
+```ts
+function pathMatches(pattern: string, pathname: string): boolean {
+  if (pattern === '*') return true;
+  if (pattern.endsWith('*')) {
+    return pathname.startsWith(pattern.slice(0, -1));
+  }
+  return pathname === pattern;
+}
+```
+
+</Step>
+<Step>
+
+### Walk rules in order
+
+`evaluateRequest` starts with a neutral decision and iterates the rules array. Disabled rules and non-matching rules are skipped.
+
+```ts
+const decision: RoutingDecision = {
+  action: 'next',
+  pathname: request.pathname,
+  setHeaders: {},
+  setCookies: {},
+  matchedRules: [],
+};
+
+for (const rule of rules) {
+  if (!rule.enabled) continue;
+  if (!pathMatches(rule.match, request.pathname)) continue;
+  // switch (rule.type) { ... }
+}
+```
+
+</Step>
+<Step>
+
+### Apply each rule type
+
+Rewrites and redirects overwrite `action` and `pathname`; a redirect also sets `status = 307`. Locale rules set an `x-locale` header. A `feature-flag` rule with value `off` turns the action into `block` with status `404`.
+
+```ts
+case 'rewrite':
+  decision.action = 'rewrite';
+  decision.pathname = rule.value;
+  break;
+case 'redirect':
+  decision.action = 'redirect';
+  decision.pathname = rule.value;
+  decision.status = 307;
+  break;
+case 'locale':
+  decision.setHeaders['x-locale'] = rule.value;
+  break;
+case 'feature-flag':
+  if (rule.value === 'off') {
+    decision.action = 'block';
+    decision.status = 404;
+  }
+  break;
+```
+
+</Step>
+<Step>
+
+### Render the decision
+
+The demo memoises the decision from `rules` and `pathname` and prints it with `JSON.stringify(decision, null, 2)`. The request object it passes has empty `headers` and `cookies`.
+
+```ts
+const request: RequestInput = useMemo(
+  () => ({ pathname, headers: {}, cookies: {} }),
+  [pathname],
+);
+const decision = useMemo(() => evaluateRequest(rules, request), [rules, request]);
+```
+
+</Step>
+</Steps>
+
+### How this differs from the repository's real `proxy.ts`
+
+This repository's actual `proxy.ts` is separate from the lab. It rewrites documentation URLs to Markdown content (using `fumadocs-core/negotiation`) when a `.md` suffix is requested or the `Accept` header prefers Markdown, and otherwise calls `NextResponse.next()`. The lab does not read or run that file.
+
+```ts
+export default function proxy(request: NextRequest) {
+  const result = rewriteSuffix(request.nextUrl.pathname);
+  if (result) {
+    return NextResponse.rewrite(new URL(result, request.nextUrl));
+  }
+  // ...Accept-header negotiation, then:
+  return NextResponse.next();
+}
+```
+
+## Use Cases
+
+- Prototype the order and shape of rewrite, redirect, and header rules before writing a `proxy.ts`.
+- Explain why two matching rules can conflict, and how ordering resolves it.
+- Teach the difference between rewrite (URL stays, content changes) and redirect (browser navigates, status `307`).
+- Explore feature-flag-style kill switches that return `404`.
+
+## Limitations
+
+Security notes for this experiment:
+
+- This lab uses a deterministic simulator by default.
+- Terminology follows the installed Next.js Proxy conventions.
+
+Additional limits that come from the code:
+
+- **Simulator only.** Nothing here runs `proxy.ts`, and no real routing is changed. A "block" is just a field in the output.
+- **Last matching rule wins for `action` and `pathname`.** Evaluation does not stop at the first match. A redirect followed by a rewrite ends as a rewrite, and a `feature-flag` set to `off` followed by a rewrite changes `action` back to `rewrite` while `status` stays `404`.
+- **`header` and `cookie` rules reuse `match` twice.** The same field is the path pattern *and* the header or cookie name. The "Add rule" button creates a `header` rule with `match: 'x-demo'`, which compares `x-demo` to the request path and therefore never matches a real path. To see a header rule fire you would need a path pattern that doubles as a name, which is not useful. Treat this as a known simplification of the demo, not a pattern to copy.
+- **Request headers and cookies are not evaluated.** `RequestInput` includes them, but no rule type reads them and the demo always passes empty objects.
+- **Rewrites replace the whole path.** `/docs/guide` rewritten by `/docs*` - `/content/docs` becomes exactly `/content/docs`; there is no capture group or suffix preservation.
+- **Patterns are minimal.** No named parameters, regular expressions, or `matcher` config like the real Proxy supports.
+- **Redirect status is fixed** at `307`.
+
+## Use in your project
+
+The same decision logic, trimmed to a typed function you can unit-test and then translate into a real `proxy.ts`:
+
+```ts
+// lib/routing.ts
+export type Rule =
+  | { type: 'rewrite'; match: string; to: string }
+  | { type: 'redirect'; match: string; to: string }
+  | { type: 'block'; match: string };
+
+function matches(pattern: string, pathname: string) {
+  if (pattern === '*') return true;
+  if (pattern.endsWith('*')) return pathname.startsWith(pattern.slice(0, -1));
+  return pathname === pattern;
+}
+
+export function decide(rules: Rule[], pathname: string) {
+  for (const rule of rules) {
+    if (!matches(rule.match, pathname)) continue;
+    if (rule.type === 'block') return { action: 'block' as const, status: 404 };
+    if (rule.type === 'redirect') return { action: 'redirect' as const, to: rule.to, status: 307 };
+    return { action: 'rewrite' as const, to: rule.to };
+  }
+  return { action: 'next' as const };
+}
+```
+
+```ts
+// proxy.ts
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+import { decide, type Rule } from '@/lib/routing';
+
+const rules: Rule[] = [
+  { type: 'redirect', match: '/old-docs*', to: '/docs' },
+  { type: 'rewrite', match: '/blog*', to: '/content/blog' },
+];
+
+export function proxy(request: NextRequest) {
+  const result = decide(rules, request.nextUrl.pathname);
+
+  if (result.action === 'redirect') {
+    return NextResponse.redirect(new URL(result.to, request.url), result.status);
+  }
+  if (result.action === 'rewrite') {
+    return NextResponse.rewrite(new URL(result.to, request.url));
+  }
+  if (result.action === 'block') {
+    return new NextResponse(null, { status: result.status });
+  }
+  return NextResponse.next();
+}
+
+export const config = { matcher: ['/old-docs/:path*', '/blog/:path*'] };
+```
+
+This version stops at the first match, which is usually what you want in production.
+
+## Deployment
+
+<ExperimentDeployButton slug="middleware-routing-lab" />
+
+
+No external services or environment variables are needed. Use the Deploy button on this experiment page. Because the lab is client-side only, it behaves the same on a preview, production, or local build; only your own `proxy.ts` is affected by platform routing.
+
+## Local Development
+
+```bash
+pnpm install
+pnpm dev
+```
+
+Run the unit tests for the rule engine:
+
+```bash
+pnpm vitest run ../experiments/middleware-routing-lab
+```
+
+Try this sequence in the UI:
+
+1. Keep the default rules and the path `/docs/guide` to see a rewrite.
+2. Change rule 1 to `redirect` with value `/docs` to see status `307`.
+3. Change rule 3's value to `off` to see `block` with `404`.
+4. Set the path to `/` to see the `x-locale` header from rule 2.
+
+## Configuration
+
+None. The seed rules live in `defaultRules` in `apps/experiments/middleware-routing-lab/logic.ts`; everything else is edited in the UI and reset with the demo's reset button.
+
+## Vercel / Next.js Features Used
+
+- [Proxy (`proxy.ts`)](https://nextjs.org/docs/app/getting-started/proxy) as the model for the simulated rules (the `middleware` file convention was renamed to `proxy`).
+- [`NextResponse`](https://nextjs.org/docs/app/api-reference/functions/next-response) concepts: `rewrite`, `redirect`, `next`, and response headers.
+- [`redirect()`](https://nextjs.org/docs/app/api-reference/functions/redirect) reference for how Next.js uses temporary redirect status codes such as `307`.
+- React client components and `useMemo` for the live decision view.
+
+## Next Steps
+
+<Cards>
+  <Card title="Vercel Flags Lab" href="/docs/experiments/vercel-flags-lab">
+    Platform-native flag evaluation with entity targeting.
+  </Card>
+  <Card title="Global Config Lab" href="/docs/experiments/global-config-lab">
+    Ultra-low-latency config often paired with routing kill switches.
+  </Card>
+  <Card title="proxy.js file convention" href="https://nextjs.org/docs/app/api-reference/file-conventions/proxy">
+    Matchers, exports, and the Proxy execution model.
+  </Card>
+  <Card title="Proxy guide" href="https://nextjs.org/docs/app/getting-started/proxy">
+    When to use Proxy and what to avoid.
+  </Card>
+</Cards>

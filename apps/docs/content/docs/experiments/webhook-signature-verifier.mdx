@@ -1,0 +1,387 @@
+---
+title: Webhook Signature Verifier
+description: Practice HMAC signatures, timestamp tolerance, and replay prevention for webhook security.
+---
+
+<ExperimentEmbed slug="webhook-signature-verifier" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+The Webhook Signature Verifier is a client-only practice tool for the three checks that make a webhook receiver trustworthy: an **HMAC-SHA256 signature** over the raw body, a **timestamp tolerance** window, and **replay prevention**. It is built with the Web Crypto API (`crypto.subtle`), React state, and pure TypeScript in `apps/experiments/webhook-signature-verifier/logic.ts`. It has no API routes, no external services, and needs no environment variables.
+
+It teaches why you must verify the exact bytes you received, why a signature alone does not stop an attacker from re-sending a captured request, and how clock skew affects tolerance.
+
+<Callout type="info">
+  Signing and verifying both happen in your browser, with a dummy secret. The experiment is not connected to any real webhook provider, and the signature format (`t=...,v1=...`) is a Stripe-style convention used for practice. Your provider's header name, format, and signed string may differ, so always follow its documentation.
+</Callout>
+
+## Features
+
+- Generate an HMAC-SHA256 signature for a secret, a raw body, and the current Unix timestamp.
+- See the resulting header value in the form `t=<timestamp>,v1=<hex signature>`.
+- Verify with a configurable **tolerance** (seconds).
+- Simulate a drifting verifier clock with **Verifier clock skew** (seconds, positive or negative).
+- Verify **with** or **without** an in-memory replay store.
+- Change the secret or body after signing to see `bad-signature` failures.
+- Reset button that restores defaults and clears the replay store.
+
+## UI Reference
+
+This experiment has no API routes. The controls map directly to the `verifySignature` input.
+
+<TypeTable
+  type={{
+    "Signing secret (dummy)": {
+      description:
+        "HMAC key. Default is whsec_demo_only_not_real. Use practice values only.",
+      type: "string",
+      default: "'whsec_demo_only_not_real'",
+    },
+    "Raw body": {
+      description:
+        "Exact string to sign and verify. Whitespace matters; any change after signing breaks verification.",
+      type: "string",
+      default: '\'{"type":"invoice.paid","id":"demo_123"}\'',
+    },
+    "Tolerance (seconds)": {
+      description:
+        "Maximum allowed absolute difference between the verifier's now and the signature timestamp. The input is declared 0 to 3600 in the UI.",
+      type: "number",
+      default: "300",
+    },
+    "Verifier clock skew (seconds)": {
+      description:
+        "Added to the signing timestamp to produce the verifier's now (nowSeconds = timestamp + clockSkew). Declared -7200 to 7200 in the UI.",
+      type: "number",
+      default: "0",
+    },
+  }}
+/>
+
+Verification outcomes come from the `VerifyResult` type:
+
+<TypeTable
+  type={{
+    "{ ok: true }": {
+      description:
+        "Timestamp within tolerance, signature matches, and (if a replay store is used) the nonce had not been seen. UI message: Signature valid (simulated verifier).",
+      type: "VerifyResult",
+    },
+    expired: {
+      description:
+        "Absolute difference between nowSeconds and timestamp is greater than toleranceSeconds.",
+      type: "{ ok: false; reason: 'expired' }",
+    },
+    "bad-signature": {
+      description:
+        "Recomputed HMAC does not equal the supplied signature (wrong secret, changed body, or different timestamp).",
+      type: "{ ok: false; reason: 'bad-signature' }",
+    },
+    replay: {
+      description:
+        "The same timestamp:signature pair was already accepted by the replay store.",
+      type: "{ ok: false; reason: 'replay' }",
+    },
+    malformed: {
+      description:
+        "Part of the VerifyResult type. verifySignature never returns it; the demo does not parse the header, so it is not reachable from the UI.",
+      type: "{ ok: false; reason: 'malformed' }",
+    },
+  }}
+/>
+
+On failure the UI shows `Verification failed: <reason>`.
+
+## Implementation Details
+
+### Flow
+
+<Steps>
+<Step>
+
+### Sign `timestamp.body`
+
+The signed message is the timestamp, a dot, and the raw body. The key is the secret, imported for HMAC-SHA256 with Web Crypto.
+
+```ts
+async function hmacSha256Hex(secret: string, message: string): Promise<string> {
+  const key = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  );
+  const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(message));
+  return toHex(sig);
+}
+
+export async function signPayload(secret: string, body: string, timestamp: number): Promise<string> {
+  const payload = `${timestamp}.${body}`;
+  return hmacSha256Hex(secret, payload);
+}
+
+export function buildSignatureHeader(timestamp: number, signature: string): string {
+  return `t=${timestamp},v1=${signature}`;
+}
+```
+
+With the default secret, default body, and timestamp `1700000000`, the signature is:
+
+```text
+t=1700000000,v1=032067d468af678c7a3d214b261918506757028560e315844026294c53073051
+```
+
+You can reproduce it independently with OpenSSL:
+
+```bash
+printf '%s' '1700000000.{"type":"invoice.paid","id":"demo_123"}' \
+  | openssl dgst -sha256 -hmac 'whsec_demo_only_not_real'
+```
+
+</Step>
+<Step>
+
+### Check the timestamp first
+
+`verifySignature` rejects stale or far-future timestamps before doing any cryptography.
+
+```ts
+const skew = Math.abs(nowSeconds - timestamp);
+if (skew > toleranceSeconds) {
+  return { ok: false, reason: 'expired' };
+}
+```
+
+In the demo, `nowSeconds` is `timestamp + clockSkew`, so a skew of `400` with tolerance `300` yields `expired`.
+
+</Step>
+<Step>
+
+### Compare signatures in constant time
+
+The expected signature is recomputed and compared character by character, accumulating differences instead of returning at the first mismatch.
+
+```ts
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i += 1) {
+    diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return diff === 0;
+}
+
+const expected = await signPayload(secret, body, timestamp);
+if (!timingSafeEqual(expected, signature)) {
+  return { ok: false, reason: 'bad-signature' };
+}
+```
+
+</Step>
+<Step>
+
+### Reject replays
+
+After a valid signature, the verifier builds a nonce from the timestamp and signature. If a store is provided and has seen it, verification fails with `replay`; otherwise the nonce is remembered.
+
+```ts
+const nonce = `${timestamp}:${signature}`;
+if (replayStore?.has(nonce)) {
+  return { ok: false, reason: 'replay' };
+}
+replayStore?.remember(nonce);
+
+return { ok: true };
+```
+
+The store is a `Set` with a cap of 500 entries; when it is full, the oldest entry is evicted.
+
+```ts
+export class ReplayNonceStore {
+  private readonly seen = new Set<string>();
+  constructor(private readonly maxEntries = 500) {}
+  // has(), remember() ...
+}
+```
+
+</Step>
+</Steps>
+
+### Try these scenarios
+
+| Goal | What to do | Result |
+| --- | --- | --- |
+| Valid signature | Generate, then Verify | `Signature valid (simulated verifier).` |
+| Tampered body | Generate, edit the body, Verify | `Verification failed: bad-signature` |
+| Wrong secret | Generate, edit the secret, Verify | `Verification failed: bad-signature` |
+| Expired | Generate, set skew above the tolerance, Verify | `Verification failed: expired` |
+| Replay | Generate, Verify with replay store twice | First valid, second `Verification failed: replay` |
+| No replay protection | Generate, plain Verify twice | Both valid |
+
+## Use Cases
+
+- Learning the shape of signed webhooks before integrating a real provider.
+- Explaining to teammates why the raw body must be used, not re-serialized JSON.
+- Testing intuition about tolerance windows and clock drift.
+- Prototyping a verification utility that you will later back with Redis or a database.
+
+## Limitations
+
+Security notes from the registry:
+
+- Use practice secrets only.
+- Replay protection in the demo is in-memory.
+
+Limits and behaviors taken from the code:
+
+- **Browser-only.** The secret and signature live in client state. Real secrets must never be placed in client code; production verification belongs on the server.
+- **Practice format.** The `t=...,v1=...` header and the `timestamp.body` signed string follow a common convention, but the experiment is not tied to a specific provider.
+- **In-memory replay store.** `ReplayNonceStore` lives in a React ref, is cleared on Reset or page refresh, and is not shared across tabs, users, or server instances. In serverless production, use a shared store such as Redis.
+- **Nonces are only remembered on success.** A failed verification does not consume a nonce, and the replay check runs after the signature check.
+- **Header parsing is not exercised.** `parseSignatureHeader` exists in `logic.ts` and returns `null` for missing or zero timestamps or missing signatures, but the demo UI does not call it. Because of that, the `malformed` reason is never produced by `verifySignature`.
+- **Tolerance and skew are not clamped in code.** The min and max values on the inputs are HTML hints only.
+- **Simple constant-time compare.** `timingSafeEqual` returns early on length mismatch and is a teaching implementation. On Node.js servers prefer `crypto.timingSafeEqual` with equal-length buffers.
+- **Case-sensitive hex.** A signature in uppercase hex fails against the lowercase expected value.
+
+## Use in your project
+
+A minimal Route Handler that reuses the experiment's signing and verification logic. The environment variable name and header name below belong to your project; match them to your provider's documentation.
+
+```ts
+// lib/webhook-signature.ts
+export type VerifyResult =
+  | { ok: true }
+  | { ok: false; reason: 'expired' | 'bad-signature' | 'replay' | 'malformed' };
+
+const encoder = new TextEncoder();
+
+function toHex(buffer: ArrayBuffer): string {
+  return [...new Uint8Array(buffer)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+export async function signPayload(secret: string, body: string, timestamp: number) {
+  const key = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  );
+  const sig = await crypto.subtle.sign('HMAC', key, encoder.encode(`${timestamp}.${body}`));
+  return toHex(sig);
+}
+
+export function parseSignatureHeader(header: string) {
+  let timestamp: number | null = null;
+  let signature: string | null = null;
+  for (const part of header.split(',').map((p) => p.trim())) {
+    if (part.startsWith('t=')) timestamp = Number(part.slice(2));
+    if (part.startsWith('v1=')) signature = part.slice(3);
+  }
+  if (!timestamp || !signature || Number.isNaN(timestamp)) return null;
+  return { timestamp, signature };
+}
+```
+
+```ts
+// app/api/my-webhook/route.ts
+import { timingSafeEqual } from 'node:crypto';
+import { NextResponse } from 'next/server';
+import { parseSignatureHeader, signPayload } from '@/lib/webhook-signature';
+
+const TOLERANCE_SECONDS = 300;
+
+export async function POST(request: Request) {
+  const rawBody = await request.text(); // verify the exact bytes received
+  const parsed = parseSignatureHeader(request.headers.get('x-signature') ?? '');
+  if (!parsed) return NextResponse.json({ error: 'malformed' }, { status: 400 });
+
+  const now = Math.floor(Date.now() / 1000);
+  if (Math.abs(now - parsed.timestamp) > TOLERANCE_SECONDS) {
+    return NextResponse.json({ error: 'expired' }, { status: 400 });
+  }
+
+  const expected = await signPayload(process.env.WEBHOOK_SECRET!, rawBody, parsed.timestamp);
+  const a = Buffer.from(expected);
+  const b = Buffer.from(parsed.signature);
+  if (a.length !== b.length || !timingSafeEqual(a, b)) {
+    return NextResponse.json({ error: 'bad-signature' }, { status: 401 });
+  }
+
+  // Persist `${parsed.timestamp}:${parsed.signature}` in Redis with a TTL to reject replays.
+  return NextResponse.json({ received: true });
+}
+```
+
+## Deployment
+
+<ExperimentDeployButton slug="webhook-signature-verifier" />
+
+
+No Marketplace stores, secrets, or experiment-specific deploy button are needed, so a plain Vercel deploy via this experiment's Deploy button is enough. If you extend the pattern into a real receiver, store the signing secret as a server-only variable and back replay protection with a shared store such as Redis. The [Redis Cache Lab](/docs/experiments/redis-cache-lab) shows set/get with TTL on Upstash Redis, and the [Webhook Playground](/docs/experiments/webhook-playground) uses Redis for sessions when it is provisioned.
+
+## Local Development
+
+```bash
+pnpm install
+pnpm dev
+```
+
+Open the experiment page, click **Generate signature**, then **Verify**. The logic is covered by `apps/experiments/webhook-signature-verifier/logic.test.ts`:
+
+```bash
+pnpm test
+```
+
+This experiment has no API routes, so there are no `curl` examples for it. To send a signed request to your own receiver using the same format, you can compute the header in a shell:
+
+```bash
+SECRET='whsec_demo_only_not_real'
+BODY='{"type":"invoice.paid","id":"demo_123"}'
+TS=$(date +%s)
+SIG=$(printf '%s' "$TS.$BODY" | openssl dgst -sha256 -hmac "$SECRET" | awk '{print $NF}')
+curl -X POST http://localhost:3000/api/my-webhook \
+  -H "content-type: application/json" \
+  -H "x-signature: t=$TS,v1=$SIG" \
+  -d "$BODY"
+```
+
+The `/api/my-webhook` path above refers to the example handler in this guide, not a route that exists in this repository.
+
+## Configuration
+
+| Item | Required | Notes |
+| --- | --- | --- |
+| Environment variables | No | None are read by the experiment. `WEBHOOK_SECRET` in the example above is for your own project. |
+| External services | No | Web Crypto runs in the browser. |
+| Replay store | In-memory only | Replace with a shared store for production. |
+
+## Vercel / Next.js Features Used
+
+- [Web Crypto API](https://developer.mozilla.org/docs/Web/API/Web_Crypto_API) - `crypto.subtle.importKey` and `crypto.subtle.sign` with HMAC-SHA256.
+- [Client Components](https://nextjs.org/docs/app/getting-started/server-and-client-components) - the demo runs entirely in the browser.
+- [Route Handlers](https://nextjs.org/docs/app/api-reference/file-conventions/route) - the pattern the "Use in your project" example targets.
+- [Environment variables on Vercel](https://vercel.com/docs/environment-variables) - for storing a real signing secret server-side.
+
+## Next Steps
+
+<Cards>
+  <Card
+    title="Webhook Playground"
+    href="/docs/experiments/webhook-playground"
+    description="Capture real webhook requests and explore retries and idempotency."
+  />
+  <Card
+    title="Rate Limiting Simulator"
+    href="/docs/experiments/rate-limiting-simulator"
+    description="Compare rate-limit algorithms and hit a live Redis limiter."
+  />
+  <Card
+    title="Redis Cache Lab"
+    href="/docs/experiments/redis-cache-lab"
+    description="A durable store you could use for replay nonces."
+  />
+</Cards>

@@ -1,0 +1,106 @@
+---
+title: Link Preview Enricher
+description: Fetch URL meta, rewrite titles with AI, render ImageResponse cards, and optionally store PNGs in Vercel Blob.
+---
+
+<ExperimentEmbed slug="link-preview-enricher" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+Link Preview Enricher fetches page HTML (size/timeout capped), extracts OG/title meta, rewrites titles with `generateObject`, and renders `ImageResponse` cards. When `BLOB_READ_WRITE_TOKEN` is set it stores PNG uploads. Missing AI keys return `503`.
+
+## Features
+
+- **Meta fetch** – og:title / description / title tag.
+- **AI title rewrite** – short social-card titles.
+- **ImageResponse OG** – `/api/og` preview cards.
+- **Optional Blob** – store generated PNGs.
+
+## Server Reference
+
+### `POST /api/preview`
+
+```json
+{ "urls": ["https://example.com"] }
+```
+
+### `GET /api/og?title=...&description=...`
+
+Returns an `ImageResponse` PNG.
+
+| Status | Cause |
+| --- | --- |
+| `503` | No AI provider |
+| `400` | No valid http(s) URLs |
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### Fetch + extract
+
+Capped HTML download; regex meta helpers in `logic.ts`.
+
+</Step>
+<Step>
+
+### Rewrite + card
+
+`generateObject` title; `ImageResponse`; optional Blob `put`.
+
+</Step>
+</Steps>
+
+## Use Cases
+
+- Learn fetch + OG + Blob composition.
+- Prototype link unfurling.
+
+## Limitations
+
+- HTML-only meta (no full browser render).
+- Max 5 URLs per request.
+
+## Use in your project
+
+Copy handlers from `apps/experiments/link-preview-enricher/`.
+
+## Deployment
+
+<ExperimentDeployButton slug="link-preview-enricher" />
+
+## Local Development
+
+```bash
+cd apps/experiments/link-preview-enricher
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `AI_GATEWAY_API_KEY` | Yes (or `OPENAI_API_KEY`) | Title rewrite |
+| `BLOB_READ_WRITE_TOKEN` | No | Store PNGs |
+
+## Vercel / Next.js Features Used
+
+- AI SDK `generateObject`
+- `next/og` ImageResponse
+- Vercel Blob
+- Route Handlers
+
+## Next Steps
+
+<Cards>
+  <Card title="URL Brief Lab" href="/docs/experiments/url-brief-lab">
+    Capped fetch + streamed summary + OG.
+  </Card>
+  <Card title="OG Image Studio" href="/docs/experiments/og-image-studio">
+    Design Open Graph cards.
+  </Card>
+</Cards>

@@ -1,0 +1,107 @@
+---
+title: Stack Trace Fixer
+description: Paste an error + stack - Next.js tips and a repro checklist grounded in common App Router failure modes.
+---
+
+<ExperimentEmbed slug="stack-trace-fixer" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+Stack Trace Fixer detects common App Router hint patterns locally (server/client boundary, hydration, module resolution), then returns tips and a repro checklist via `generateObject`.
+
+## Features
+
+- **Local hint detection** – boundary / hydration / dynamic APIs
+- **Next.js tips + repro checklist**
+- **Docs topic hints** – keywords, not invented URLs
+
+## Server Reference
+
+### `POST /api/fix`
+
+```json
+{ "error": "...", "stack": "..." }
+```
+
+| Status | Cause |
+| --- | --- |
+| `503` | No AI provider |
+| `400` | Validation / upstream / empty input |
+
+
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### Pure helpers in `logic.ts`
+
+Caps, parsers, and clamps live in the experiment folder and are covered by `logic.test.ts`.
+
+</Step>
+<Step>
+
+### Route Handler
+
+`POST /api/fix` validates input, applies fetch/parse limits where relevant, then returns JSON from `generateObject`.
+
+</Step>
+</Steps>
+
+## Use Cases
+
+- Learn composition patterns for this lab’s stack.
+- Prototype before wiring production auth and quotas.
+- Deploy the standalone app as a reference implementation.
+
+## Limitations
+
+- Demo-scale caps on input size and output counts.
+- No auth / rate limits on public deploys.
+- Model quality depends on input clarity.
+- Treat outputs as drafts, not production truth.
+
+## Use in your project
+
+Copy the Route Handler and `logic.ts` helpers from `apps/experiments/stack-trace-fixer/`. Wire your own persistence and auth as needed.
+
+## Deployment
+
+<ExperimentDeployButton slug="stack-trace-fixer" />
+
+## Local Development
+
+```bash
+cd apps/experiments/stack-trace-fixer
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `AI_GATEWAY_API_KEY` | Yes (or `OPENAI_API_KEY`) | Preferred provider |
+| `OPENAI_API_KEY` | No | Fallback |
+| `AI_MODEL` | No | Model override |
+
+## Vercel / Next.js Features Used
+
+- Route Handlers
+- Zod
+- AI SDK `generateObject`
+
+
+## Next Steps
+
+<Cards>
+  <Card title="GitHub Issue Triage" href="/docs/experiments/github-issue-triage">
+    Related experiment.
+  </Card>
+  <Card title="AI Streaming Lab" href="/docs/experiments/ai-streaming-lab">
+    Related experiment.
+  </Card>
+</Cards>

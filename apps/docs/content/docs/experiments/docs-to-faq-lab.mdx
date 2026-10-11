@@ -1,0 +1,120 @@
+---
+title: Docs to FAQ Lab
+description: Paste markdown docs - FAQ pairs with generateObject; Redis caches by content hash when configured.
+---
+
+<ExperimentEmbed slug="docs-to-faq-lab" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+Docs to FAQ Lab turns markdown into FAQ pairs via `generateObject`. When Upstash Redis env vars are present, results are cached by SHA-256 of the content with a TTL. Without Redis, every request regenerates (no fabricated cache hits). Missing AI keys return `503`.
+
+## Features
+
+- **Markdown - FAQ** – up to 12 Q/A pairs from capped docs.
+- **Redis content-hash cache** – TTL cache when Redis is configured.
+- **Cache miss transparency** – UI shows hit/miss and backend.
+- **Sample docs** – Redis cache lab snippet.
+- **Honest `503`** when AI is unavailable.
+
+## Server Reference
+
+### `POST /api/faq`
+
+```json
+{ "markdown": "# Title\n..." }
+```
+
+#### Success (`200`)
+
+```json
+{
+  "faqs": [{ "question": "...", "answer": "..." }],
+  "cached": false,
+  "cache": "redis",
+  "provider": "ai-gateway",
+  "ttlSeconds": 3600
+}
+```
+
+| Status | Cause |
+| --- | --- |
+| `503` | No AI provider |
+| `400` | Empty markdown |
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### Hash + optional Redis GET
+
+`hashContent` - `experiments:docs-to-faq:<hash>`.
+
+</Step>
+<Step>
+
+### generateObject + SET EX
+
+On miss, generate and store with `CACHE_TTL_SECONDS`.
+
+</Step>
+</Steps>
+
+## Use Cases
+
+- Learn composition patterns for this lab’s stack.
+- Prototype before wiring production auth and quotas.
+- Deploy the standalone app as a reference implementation.
+
+## Limitations
+
+- Demo-scale caps on input size and output counts.
+- No auth / rate limits on public deploys.
+- Model quality depends on input clarity.
+
+## Use in your project
+
+Copy the Route Handler and `logic.ts` helpers from `apps/experiments/docs-to-faq-lab/`. Wire your own persistence and auth as needed.
+
+## Deployment
+
+<ExperimentDeployButton slug="docs-to-faq-lab" />
+
+## Local Development
+
+```bash
+cd apps/experiments/docs-to-faq-lab
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `AI_GATEWAY_API_KEY` | Yes (or `OPENAI_API_KEY`) | Preferred provider |
+| `OPENAI_API_KEY` | No | Fallback |
+| `AI_MODEL` | No | Model override |
+| `UPSTASH_REDIS_REST_URL` | No | Cache |
+| `UPSTASH_REDIS_REST_TOKEN` | No | Cache |
+
+## Vercel / Next.js Features Used
+
+- AI SDK `generateObject`
+- Upstash Redis
+- Route Handlers
+- Zod
+
+## Next Steps
+
+<Cards>
+  <Card title="Redis Cache Lab" href="/docs/experiments/redis-cache-lab">
+    TTL cache patterns.
+  </Card>
+  <Card title="Flashcards from Notes" href="/docs/experiments/flashcards-from-notes">
+    Structured output from text.
+  </Card>
+</Cards>

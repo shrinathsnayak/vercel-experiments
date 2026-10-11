@@ -1,0 +1,102 @@
+---
+title: Policy Simplifier Lab
+description: Paste terms or privacy text - plain-language summary, key bullets, and watch-outs (not legal advice).
+---
+
+<ExperimentEmbed slug="policy-simplifier-lab" />
+
+<Callout type="warning">
+  This is an experimental demo. Outputs are not legal advice.
+</Callout>
+
+Policy Simplifier Lab rewrites terms/privacy excerpts into plain English with `generateObject`: a short summary, key bullets, and watch-outs. No AI keys - `503`.
+
+## Features
+
+- **Plain summary** – 2–4 sentences.
+- **Key bullets** – collection, sharing, retention, rights.
+- **Watch outs** – careful-reader callouts.
+- **Sample privacy excerpt**.
+- **Honest unavailable state**.
+
+## Server Reference
+
+### `POST /api/simplify`
+
+```json
+{ "policy": "..." }
+```
+
+#### Success (`200`)
+
+```json
+{
+  "plainSummary": "We collect email and usage data…",
+  "bullets": ["You can request deletion…"],
+  "watchOuts": ["Legal hold can keep records up to 7 years."],
+  "provider": "ai-gateway"
+}
+```
+
+| Status | Cause |
+| --- | --- |
+| `503` | No AI provider |
+| `400` | Empty policy |
+
+## Implementation Details
+
+`clampSummary` trims and caps bullets (16) and watch-outs (8).
+
+## Use Cases
+
+- Internal policy literacy drafts.
+- Teach plain-language rewrite schemas.
+- Pair with Contract Clause Finder for legal-ish docs.
+
+## Limitations
+
+- Not legal advice.
+- Truncates long policies (~18k chars).
+- No auth / rate limits.
+
+## Use in your project
+
+Reuse the summary + bullets schema from `app/api/simplify/route.ts`.
+
+## Deployment
+
+<ExperimentDeployButton slug="policy-simplifier-lab" />
+
+## Local Development
+
+```bash
+cd apps/experiments/policy-simplifier-lab
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `AI_GATEWAY_API_KEY` | Yes (or `OPENAI_API_KEY`) | Preferred provider |
+| `OPENAI_API_KEY` | No | Fallback |
+| `AI_MODEL` | No | Model override |
+
+## Vercel / Next.js Features Used
+
+- AI SDK `generateObject`
+- Vercel AI Gateway
+- Route Handlers
+- Zod
+
+## Next Steps
+
+<Cards>
+  <Card title="Contract Clause Finder" href="/docs/experiments/contract-clause-finder">
+    Structured clause tables from contracts.
+  </Card>
+  <Card title="Docs to FAQ Lab" href="/docs/experiments/docs-to-faq-lab">
+    Docs - FAQ pairs.
+  </Card>
+</Cards>

@@ -1,0 +1,334 @@
+---
+title: Cache Behavior Explorer
+description: Visualize cache hits, misses, stale responses, and Cache-Control strategies in simulated and real HTTP modes.
+---
+
+<ExperimentEmbed slug="cache-behavior-explorer" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+Cache Behavior Explorer lets you compare four `Cache-Control` strategies in two ways. **Simulated mode** runs a small deterministic state machine (`simulateCacheTimeline`) that shows when requests would be a miss, fresh, or served stale while revalidating. **Real HTTP mode** fetches `GET /api/cache-demo?strategy=…` from this app and shows the actual `Cache-Control` header and JSON body that came back.
+
+It is built with plain TypeScript and Next.js Route Handlers. The problem it teaches is the vocabulary of HTTP caching: what `no-store`, `max-age`, and `stale-while-revalidate` ask a cache to do, and how to tell the difference between an educational model and an observed response.
+
+## Features
+
+- **Four strategies** – `no-store`, `max-age` (10 s), `max-age` (120 s), and `stale-while-revalidate` (`max-age=10, stale-while-revalidate=30`).
+- **Simulated timeline** – choose 1–12 requests and a 1–60 second gap; each row shows the request number, state (`miss`, `fresh`, `stale`, `revalidating`), and an explanatory note.
+- **Real HTTP probe** – one click fetches the demo route and prints status, response `Cache-Control`, and body.
+- **Honest labelling** – the UI states that simulated mode is not Vercel CDN telemetry and the route's own response notes it is not an edge measurement.
+- **Pure logic** – the simulator is covered by Vitest and has no dependencies.
+
+## API Reference
+
+### `GET /api/cache-demo`
+
+Returns a small JSON payload and sets `Cache-Control` according to the chosen strategy.
+
+<TypeTable
+  type={{
+    strategy: {
+      description: "Cache strategy to apply. Invalid or missing values fall back to `max-age-short` (the route never returns 400).",
+      type: "'no-store' | 'max-age-short' | 'max-age-long' | 'stale-while-revalidate'",
+      default: "'max-age-short'",
+    },
+  }}
+/>
+
+Header values by strategy:
+
+| `strategy` | `Cache-Control` header |
+| --- | --- |
+| `no-store` | `no-store` |
+| `max-age-short` | `public, max-age=10` |
+| `max-age-long` | `public, max-age=120` |
+| `stale-while-revalidate` | `public, max-age=10, stale-while-revalidate=30` |
+
+The response also includes `x-cache-demo: 1` and `content-type: application/json`.
+
+```bash
+curl -i "http://localhost:3000/api/cache-demo?strategy=stale-while-revalidate"
+```
+
+```json
+{
+  "strategy": "stale-while-revalidate",
+  "cacheControl": "public, max-age=10, stale-while-revalidate=30",
+  "timestamp": "2026-10-11T05:56:12.345Z",
+  "note": "Response from this app’s API route - not a Vercel CDN edge measurement."
+}
+```
+
+The `timestamp` is generated per origin execution, so comparing it across repeated requests tells you whether you received a cached copy (same timestamp) or a fresh one (new timestamp).
+
+## UI Reference
+
+The simulator itself is a pure function exported from `apps/experiments/cache-behavior-explorer/logic.ts`:
+
+<TypeTable
+  type={{
+    strategy: {
+      description: "One of the four strategy identifiers.",
+      type: "CacheStrategy",
+      required: true,
+    },
+    requestCount: {
+      description: "Number of requests to simulate. The UI limits the input to 1–12; the function itself does not clamp it.",
+      type: "number",
+      required: true,
+    },
+    secondsBetweenRequests: {
+      description: "Gap between requests in seconds. The UI limits the input to 1–60.",
+      type: "number",
+      required: true,
+    },
+  }}
+/>
+
+Each result is a `SimulatedRequest`:
+
+```ts
+export type CacheState = 'miss' | 'fresh' | 'stale' | 'revalidating';
+
+export type SimulatedRequest = {
+  step: number;
+  state: CacheState;
+  ageSeconds: number;
+  note: string;
+};
+```
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### Describe the strategies
+
+A single table drives both the label shown in the UI and the simulator.
+
+```ts
+const STRATEGY_CONFIG: Record<
+  CacheStrategy,
+  { maxAge: number; swr: number; label: string }
+> = {
+  'no-store': { maxAge: 0, swr: 0, label: 'Cache-Control: no-store' },
+  'max-age-short': { maxAge: 10, swr: 0, label: 'Cache-Control: max-age=10' },
+  'max-age-long': { maxAge: 120, swr: 0, label: 'Cache-Control: max-age=120' },
+  'stale-while-revalidate': { maxAge: 10, swr: 30, label: 'max-age=10, stale-while-revalidate=30' },
+};
+```
+
+</Step>
+<Step>
+
+### Generate the header
+
+The route handler and the UI share `cacheHeaderForStrategy`.
+
+```ts
+export function cacheHeaderForStrategy(strategy: CacheStrategy): string {
+  const cfg = STRATEGY_CONFIG[strategy];
+  if (strategy === 'no-store') return 'no-store';
+  if (strategy === 'stale-while-revalidate') {
+    return `public, max-age=${cfg.maxAge}, stale-while-revalidate=${cfg.swr}`;
+  }
+  return `public, max-age=${cfg.maxAge}`;
+}
+```
+
+</Step>
+<Step>
+
+### Advance a simulated clock
+
+For request `i`, time is `i * secondsBetweenRequests`. The first request is a miss and records `cachedAt`. Later requests compare `age = now - cachedAt` to `maxAge` and, for `stale-while-revalidate`, to `maxAge + swr`.
+
+```ts
+const age = now - cachedAt;
+if (age <= cfg.maxAge) {
+  state = 'fresh';
+  note = `Served from cache (age ${age}s ≤ max-age ${cfg.maxAge}s).`;
+} else if (strategy === 'stale-while-revalidate' && age <= cfg.maxAge + cfg.swr) {
+  state = 'revalidating';
+  note = `Stale response served while background revalidation runs (age ${age}s).`;
+  if (age === cfg.maxAge + 1 || i === requestCount - 1) {
+    cachedAt = now;
+  }
+} else {
+  state = 'miss';
+  cachedAt = now;
+  note = 'Cache expired - origin fetch required.';
+}
+```
+
+</Step>
+<Step>
+
+### Serve the real response
+
+The route parses the query with Zod, falls back to `max-age-short` on invalid input, and sets the header directly.
+
+```ts
+const querySchema = z.object({
+  strategy: z
+    .enum(['no-store', 'max-age-short', 'max-age-long', 'stale-while-revalidate'])
+    .default('max-age-short'),
+});
+
+const parsed = querySchema.safeParse(Object.fromEntries(request.nextUrl.searchParams));
+const strategy = (parsed.success ? parsed.data.strategy : 'max-age-short') as CacheStrategy;
+```
+
+</Step>
+<Step>
+
+### Probe from the browser
+
+Real mode calls `fetch('/api/cache-demo?strategy=…', { cache: 'default' })`, so the browser's HTTP cache may answer repeat requests. The UI then prints `status`, the response `cache-control`, and the body.
+
+</Step>
+</Steps>
+
+Example simulator output for `max-age-short` with 6 requests, 8 seconds apart:
+
+| # | State | Note |
+| --- | --- | --- |
+| 1 | `miss` | First request populates cache. |
+| 2 | `fresh` | Served from cache (age 8s ≤ max-age 10s). |
+| 3 | `miss` | Cache expired - origin fetch required. |
+| 4 | `fresh` | Served from cache (age 8s ≤ max-age 10s). |
+| 5 | `miss` | Cache expired - origin fetch required. |
+| 6 | `fresh` | Served from cache (age 8s ≤ max-age 10s). |
+
+## Use Cases
+
+- Explain the difference between `no-store`, short-lived, and long-lived `max-age` to a team.
+- See why `stale-while-revalidate` trades freshness for latency.
+- Verify that your own API route sets the `Cache-Control` header you intended by comparing it with the explorer's output.
+- Use the repeated-fetch timestamp trick to detect whether the browser cache served a response.
+
+## Limitations
+
+Security notes for this experiment:
+
+- Simulated mode is educational only.
+- Real mode measures this app’s route handlers, not unverified CDN claims.
+
+Additional limits that come from the code:
+
+- **The simulator is a simplified model.** It tracks a single cache entry, ignores `Age`, `ETag`/`If-None-Match`, `Vary`, shared-versus-private caches, and `s-maxage`. It never produces the `stale` state; only `miss`, `fresh`, and `revalidating` appear.
+- **Background revalidation is approximated.** In `stale-while-revalidate` mode the cache entry is only refreshed when `age === maxAge + 1` or on the final request. With an 8-second gap that exact second is skipped, so requests 3 to 5 report a growing age (16 s, 24 s, 32 s) until the stale window is used up. Treat the timeline as a teaching aid rather than a spec-accurate model.
+- **Real mode does not show CDN status.** The route returns its own headers; it does not read or report `x-vercel-cache` or any edge header. A repeat fetch may be answered by the browser cache, a Vercel CDN cache, or your origin, and the page cannot tell you which.
+- **The route is dynamic.** It reads `request.nextUrl.searchParams`, so Next.js does not prerender it; caching depends on the headers it sets and your platform's behaviour.
+- **Inputs are not clamped in code.** The numeric limits (1–12 requests, 1–60 seconds) are only HTML input attributes.
+- **No authentication or rate limiting** on `/api/cache-demo`.
+
+## Use in your project
+
+Reuse the strategy-to-header mapping in a route handler:
+
+```ts
+// app/api/data/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
+
+type CacheStrategy = 'no-store' | 'max-age-short' | 'max-age-long' | 'stale-while-revalidate';
+
+const CACHE_HEADERS: Record<CacheStrategy, string> = {
+  'no-store': 'no-store',
+  'max-age-short': 'public, max-age=10',
+  'max-age-long': 'public, max-age=120',
+  'stale-while-revalidate': 'public, max-age=10, stale-while-revalidate=30',
+};
+
+const querySchema = z.object({
+  strategy: z.enum(['no-store', 'max-age-short', 'max-age-long', 'stale-while-revalidate'])
+    .default('max-age-short'),
+});
+
+export async function GET(request: NextRequest) {
+  const parsed = querySchema.safeParse(Object.fromEntries(request.nextUrl.searchParams));
+  const strategy = parsed.success ? parsed.data.strategy : 'max-age-short';
+
+  return NextResponse.json(
+    { strategy, timestamp: new Date().toISOString() },
+    { headers: { 'cache-control': CACHE_HEADERS[strategy] } },
+  );
+}
+```
+
+And a tiny freshness check you can use in tests:
+
+```ts
+export function isFresh(ageSeconds: number, maxAge: number) {
+  return ageSeconds <= maxAge;
+}
+```
+
+## Deployment
+
+<ExperimentDeployButton slug="cache-behavior-explorer" />
+
+
+No external services are required, so use the Deploy button on this experiment page. On Vercel, real mode runs against your deployment's Vercel Function and CDN, so the same URL can behave differently from `pnpm dev`. Remember that the experiment does not read CDN headers, so use your browser's network panel or `curl -i` to look at response headers such as `x-vercel-cache`.
+
+## Local Development
+
+```bash
+pnpm install
+pnpm dev
+```
+
+Try the route with `curl`:
+
+```bash
+# Default strategy (max-age=10)
+curl -i "http://localhost:3000/api/cache-demo"
+
+# no-store
+curl -i "http://localhost:3000/api/cache-demo?strategy=no-store"
+
+# stale-while-revalidate
+curl -i "http://localhost:3000/api/cache-demo?strategy=stale-while-revalidate"
+
+# Invalid strategy silently falls back to max-age-short
+curl -i "http://localhost:3000/api/cache-demo?strategy=bogus"
+```
+
+Run the simulator tests:
+
+```bash
+pnpm vitest run ../experiments/cache-behavior-explorer
+```
+
+## Configuration
+
+None. The experiment has no environment variables and no external services. The strategy values (10 s, 120 s, 30 s stale window) are constants in `apps/experiments/cache-behavior-explorer/logic.ts`.
+
+## Vercel / Next.js Features Used
+
+- [Route Handlers](https://nextjs.org/docs/app/api-reference/file-conventions/route) for `GET /api/cache-demo`.
+- [`NextResponse.json`](https://nextjs.org/docs/app/api-reference/functions/next-response) with custom headers.
+- [CDN caching guide](https://nextjs.org/docs/app/guides/cdn-caching) for how Next.js sets `Cache-Control`.
+- [Vercel CDN caching](https://vercel.com/docs/edge-network/caching) for how the platform interprets cache headers.
+- The browser HTTP cache, through `fetch` with `cache: 'default'`.
+
+## Next Steps
+
+<Cards>
+  <Card title="ISR and Revalidation Playground" href="/docs/experiments/isr-revalidation-playground">
+    Explore static regeneration and on-demand revalidation timelines.
+  </Card>
+  <Card title="Redis Cache Lab" href="/docs/experiments/redis-cache-lab">
+    Set and get values with TTL on Upstash Redis.
+  </Card>
+  <Card title="CDN caching with Next.js" href="https://nextjs.org/docs/app/guides/cdn-caching">
+    What Next.js sets and what CDNs can cache.
+  </Card>
+  <Card title="MDN: Cache-Control" href="https://developer.mozilla.org/docs/Web/HTTP/Headers/Cache-Control">
+    The authoritative reference for cache directives.
+  </Card>
+</Cards>

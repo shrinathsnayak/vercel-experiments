@@ -1,0 +1,91 @@
+---
+title: Feature Request Board
+description: Paste product ideas - AI clusters themes - Redis/memory vote counters with honest fallbacks.
+---
+
+<ExperimentEmbed slug="feature-request-board" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+Feature Request Board is a Wave 3 Batch H composition lab. Pure helpers live in `logic.ts`; missing providers or stores degrade honestly (never fabricate AI output).
+
+## Features
+
+- generateObject clusters ideas into themes
+- Redis/memory vote increments per cluster id
+- Honest 503 without AI; memory note without Redis
+
+## Server Reference
+
+### `POST /api/cluster · POST /api/vote · GET /api/vote`
+
+```json
+{ "ideas": "dark mode\nexport CSV" }
+```
+
+| Status | Cause |
+| --- | --- |
+| `200` | Success |
+| `400` | Missing ideas / clusterId |
+| `503` | No AI provider |
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### Validate
+
+Inputs are length-capped in `logic.ts`; APIs return `400` for missing fields.
+
+</Step>
+<Step>
+
+### Run
+
+Route Handlers compose AI SDK, Redis/Neon, or `ImageResponse` as documented. Fallbacks include honest notes.
+
+</Step>
+</Steps>
+
+## Limitations
+
+- Not a full product board.
+- Clustering quality depends on the model.
+- Votes reset on cold start without Redis.
+
+## Use in your project
+
+Copy the Route Handler(s) and `logic.ts` from `apps/experiments/feature-request-board/`.
+
+## Deployment
+
+<ExperimentDeployButton slug="feature-request-board" />
+
+## Local Development
+
+```bash
+cd apps/experiments/feature-request-board
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `AI_GATEWAY_API_KEY` | Yes (or OpenAI) | Preferred AI provider |
+| `UPSTASH_REDIS_REST_*` | No | Durable votes |
+
+## Next Steps
+
+<Cards>
+  <Card title="Customer Voice Themes" href="/docs/experiments/customer-voice-themes">
+    Related experiment.
+  </Card>
+  <Card title="Habit Tracker Lite" href="/docs/experiments/habit-tracker-lite">
+    Related experiment.
+  </Card>
+</Cards>

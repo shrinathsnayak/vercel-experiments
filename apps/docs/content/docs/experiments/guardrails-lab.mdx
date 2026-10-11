@@ -1,0 +1,83 @@
+---
+title: Guardrails Lab
+description: Allow/block/rewrite policy with an audit log; optional Redis rate limiting.
+---
+
+<ExperimentEmbed slug="guardrails-lab" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+Policy demo for allow, block, and rewrite with an audit trail and optional Redis rate limits.
+
+## Features
+
+- Standalone Next.js app under `apps/experiments/guardrails-lab/`.
+- Honest degradation when optional services are missing.
+- Unit-tested helpers in `logic.ts`.
+
+## Server Reference
+
+### `POST /api/check`
+
+```
+{ "input": "..." }
+```
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### Run the demo
+
+Use the embedded playground or `pnpm dev` in the experiment app.
+
+</Step>
+<Step>
+
+### Inspect the handlers
+
+Copy Route Handlers from `apps/experiments/guardrails-lab/` into your project.
+
+</Step>
+</Steps>
+
+## Limitations
+
+- Educational demo — not a production-hardened product.
+- Inputs are length-capped.
+
+## Use in your project
+
+Copy the experiment folder or individual Route Handlers.
+
+## Deployment
+
+<ExperimentDeployButton slug="guardrails-lab" />
+
+## Local Development
+
+```bash
+cd apps/experiments/guardrails-lab
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `AI_GATEWAY_API_KEY` | Yes | Lab configuration |
+
+## Vercel / Next.js Features Used
+
+- AI SDK, AI Gateway, Upstash Redis, Zod
+
+## Next Steps
+
+<Cards>
+  <Card title="content-security-policy-builder" href="/docs/experiments/content-security-policy-builder">Related lab.</Card>
+  <Card title="support-triage-lab" href="/docs/experiments/support-triage-lab">Related lab.</Card>
+</Cards>

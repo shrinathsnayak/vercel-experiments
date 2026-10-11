@@ -1,0 +1,38 @@
+{
+  "name": "@experiments/redis-cache-lab",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --port 3010",
+    "build": "next build",
+    "start": "next start",
+    "types:check": "next typegen && tsc --noEmit"
+  },
+  "dependencies": {
+    "next": "16.3.8",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.50.0",
+    "radix-ui": "^1.7.0",
+    "tailwind-merge": "^3.7.0",
+    "tw-animate-css": "^1.4.0",
+    "shadcn": "^4.21.4",
+    "@upstash/redis": "^1.39.0",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/node": "^26.6.4",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "postcss": "^8.5.28",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "pnpm@10.12.1"
+}

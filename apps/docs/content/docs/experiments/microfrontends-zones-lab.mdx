@@ -1,0 +1,82 @@
+---
+title: Microfrontends Zones Lab
+description: "Shell page plus zone child contract demo explaining Vercel microfrontends/zones with concrete rewrites."
+---
+
+<ExperimentEmbed slug="microfrontends-zones-lab" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+Explain Vercel microfrontends/zones with a concrete **shell + zone child contract**. The child is an iframe to a same-app route for teaching - production zones route by path across projects.
+
+## Features
+
+- Shell chrome with zone switcher
+- Zone child page contract
+- Rewrite sketch JSON
+- Longest-prefix path resolution
+
+## UI Reference
+
+No JSON API - interactive demo + `/zone-child` page. Shell chrome, zone switcher, and rewrite sketch JSON all run in the client.
+
+## Implementation Details
+
+<Files>
+  <Folder name="apps/experiments/microfrontends-zones-lab" defaultOpen>
+    <File name="demo.tsx" />
+    <File name="logic.ts" />
+    <File name="logic.test.ts" />
+  </Folder>
+</Files>
+
+`resolveZone` picks the longest matching basePath. `zoneRewrites` builds a teaching rewrite map.
+
+## Use Cases
+
+- Multi-team frontend ownership
+- Path-based zone planning
+- Shell/nav contracts
+
+## Limitations
+
+- Iframe is educational, not how production zones mount.
+- No real multi-project deploy in this lab.
+- Auth cookie sharing across zones needs careful domain setup.
+
+## Use in your project
+
+Deploy or copy `apps/experiments/microfrontends-zones-lab/` and adapt the Route Handlers and pure helpers in `logic.ts`. Keep honest fallbacks when optional services are missing.
+
+## Deployment
+
+<ExperimentDeployButton slug="microfrontends-zones-lab" />
+
+## Local Development
+
+```bash
+cd apps/experiments/microfrontends-zones-lab
+pnpm install
+pnpm dev
+```
+
+Open http://localhost:3010
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| _(none)_ | - | Works without extra secrets |
+
+## Vercel / Next.js Features Used
+
+- App Router
+- Rewrites (conceptual)
+
+## Next Steps
+
+- Explore related labs from the registry `relatedSlugs`
+- Harden secrets, auth, and input limits before production
+- Prefer platform primitives when you outgrow demo patterns

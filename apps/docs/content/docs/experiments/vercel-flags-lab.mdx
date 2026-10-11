@@ -1,0 +1,156 @@
+---
+title: Vercel Flags Lab
+description: Evaluate platform-native Vercel Flags with entity targeting - local sticky simulator plus live flags-core.
+---
+
+<ExperimentEmbed slug="vercel-flags-lab" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+The Vercel Flags Lab covers [platform-native Vercel Flags](https://vercel.com/docs/flags/vercel-flags): define flags in the dashboard (or as code drafts), evaluate them with the Flags SDK / `@vercel/flags-core`, and target using entities such as `user.plan`. Pair it with the [Global Config Lab](/docs/experiments/global-config-lab) when you need ultra-low-latency config reads alongside flags.
+
+## Features
+
+- **Flags SDK definition.** `flags.ts` exports `marketingBanner` with `vercelAdapter()` so drafts can surface in the dashboard.
+- **Local targeting simulator.** Sticky FNV bucket + plan rules (`enterprise` / `beta`) run entirely in the browser via `evaluateLocalFlag`.
+- **Live evaluation.** `POST /api/flags/evaluate` calls `flagsClient.evaluate` from `@vercel/flags-core`.
+- **Honest setup errors.** Missing OIDC or missing dashboard flag returns `503` with requirements.
+
+## UI Reference
+
+| Control | Behavior |
+| --- | --- |
+| Flag key / User ID / plan | Entities for local + live evaluation |
+| Rollout % / Flag enabled | Local simulator only (`evaluateLocalFlag` in `logic.ts`) |
+| Local status | Updates as you edit - no network |
+| Evaluate via Vercel Flags | Hits the live Route Handler |
+
+Local mode never calls `/api` - the sticky simulator is pure client TypeScript.
+
+## API Reference
+
+### `POST /api/flags/evaluate`
+
+Live Flags evaluation only. Local simulation stays in the UI.
+
+<TypeTable
+  type={{
+    key: {
+      type: 'string',
+      description: 'Flag key. Default marketing-banner.',
+    },
+    userId: {
+      type: 'string',
+      description: 'Entity user.id used for sticky assignment.',
+    },
+    plan: {
+      type: '"standard" | "enterprise" | "beta"',
+      description: 'Entity user.plan for targeting rules.',
+    },
+  }}
+/>
+
+```bash
+curl -X POST http://localhost:3010/api/flags/evaluate \
+  -H 'content-type: application/json' \
+  -d '{"key":"marketing-banner","userId":"user-7f3a","plan":"enterprise"}'
+```
+
+| Status | Cause |
+| --- | --- |
+| `200` | Evaluated via `@vercel/flags-core` |
+| `400` | Invalid body |
+| `503` | Missing dashboard flag / OIDC - see `requirements` |
+
+## Implementation Details
+
+Code-defined flag:
+
+```ts title="apps/experiments/vercel-flags-lab/flags.ts"
+import { flag } from 'flags/next';
+import { vercelAdapter } from '@flags-sdk/vercel';
+
+export const marketingBanner = flag({
+  key: 'marketing-banner',
+  adapter: vercelAdapter(),
+  defaultValue: false,
+});
+```
+
+Live evaluation path:
+
+```ts title="apps/experiments/vercel-flags-lab/app/api/flags/evaluate/route.ts"
+const { flagsClient } = await import('@vercel/flags-core');
+const result = await flagsClient.evaluate<boolean>(key, false, entities);
+```
+
+`evaluateLocalFlag` in `logic.ts` mirrors sticky rollout and plan overrides without calling the network.
+
+## Use Cases
+
+- Release features behind dashboard toggles without redeploying
+- Target enterprise / beta cohorts with entity attributes
+- Progressive percentage rollouts with sticky user assignment
+
+## Limitations
+
+- Live mode needs a flag in the Vercel project Flags UI and OIDC locally.
+- Local simulator is not the production evaluation engine - rules you configure in the dashboard are authoritative for live mode.
+- Embedded definitions and Flags Explorer behaviour appear after a real Vercel deploy.
+
+## Use in your project
+
+1. Create a flag in the dashboard (or deploy a `flag({...})` draft)
+2. `pnpm add flags @flags-sdk/vercel` (and/or `@vercel/flags-core`)
+3. Evaluate in Server Components with `await myFlag()` or `flagsClient.evaluate`
+
+## Deployment
+
+<ExperimentDeployButton slug="vercel-flags-lab" />
+
+After deploy, create `marketing-banner` under **Flags**, toggle environments, and hit **Evaluate via Vercel Flags** in the demo.
+
+## Local Development
+
+```bash
+cd apps/experiments/vercel-flags-lab
+pnpm install
+vercel link && vercel env pull
+pnpm dev
+```
+
+Unit tests:
+
+```bash
+pnpm vitest run ../experiments/vercel-flags-lab
+```
+
+## Configuration
+
+| Setup | Required | Notes |
+| --- | --- | --- |
+| Dashboard flag `marketing-banner` | Live mode | Boolean recommended for this demo |
+| OIDC (`vercel env pull`) | Local live eval | Automatic on Vercel |
+
+## Vercel / Next.js Features Used
+
+- [Vercel Flags](https://vercel.com/docs/flags/vercel-flags)
+- [Flags SDK](https://flags-sdk.dev) (`flags/next`) + [`@flags-sdk/vercel`](https://vercel.com/docs/flags/vercel-flags/quickstart)
+- [`@vercel/flags-core`](https://vercel.com/docs/flags/vercel-flags/quickstart) evaluation engine
+- Next.js Route Handlers and Server Components patterns
+
+## Next Steps
+
+<Cards>
+  <Card title="Global Config Lab" href="/docs/experiments/global-config-lab">
+    Ultra-low-latency config primitive often paired with flags.
+  </Card>
+  <Card title="Middleware and Routing Lab" href="/docs/experiments/middleware-routing-lab">
+    Proxy decisions including feature-flag-style kill switches.
+  </Card>
+  <Card title="Vercel Flags quickstart" href="https://vercel.com/docs/flags/vercel-flags/quickstart">
+    Official dashboard + SDK setup guide.
+  </Card>
+</Cards>

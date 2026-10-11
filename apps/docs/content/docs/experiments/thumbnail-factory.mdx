@@ -1,0 +1,97 @@
+---
+title: Thumbnail Factory
+description: Title + theme - batch ImageResponse thumbnail URLs (square, wide, story) with no AI required.
+---
+
+<ExperimentEmbed slug="thumbnail-factory" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+Thumbnail Factory is a Wave 3 Batch H composition lab. The UI builds batch URLs in `logic.ts`; `GET /api/thumb` renders each size with `ImageResponse`.
+
+## Features
+
+- Batch size variants
+- Theme color accents
+- Pure ImageResponse
+
+## UI Reference
+
+| Control | Behavior |
+| --- | --- |
+| Title | Length-capped via `normalizeTitle` |
+| Theme | One of ocean / forest / dusk / slate |
+| Build batch | Builds preview URLs via `batchUrls` |
+
+URL helpers live in the client - there is no JSON batch API.
+
+## API Reference
+
+### `GET /api/thumb`
+
+Query: `title`, `theme`, `w`, `h`. Returns an `ImageResponse` PNG for that size.
+
+| Status | Cause |
+| --- | --- |
+| `200` | Thumbnail rendered |
+| `400` | Invalid input |
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### Build URLs in the UI
+
+`batchUrls` maps square / wide / story sizes to `/api/thumb?...` query strings.
+
+</Step>
+<Step>
+
+### Render with ImageResponse
+
+Each preview `<img>` hits `GET /api/thumb` with theme colors from `THEMES`.
+
+</Step>
+</Steps>
+
+## Limitations
+
+- No CDN asset pipeline.
+- System fonts only.
+- Demo themes only.
+
+## Use in your project
+
+Copy `app/api/thumb/route.tsx` and `logic.ts` from `apps/experiments/thumbnail-factory/`.
+
+## Deployment
+
+<ExperimentDeployButton slug="thumbnail-factory" />
+
+## Local Development
+
+```bash
+cd apps/experiments/thumbnail-factory
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `—` | — | No secrets required |
+
+## Next Steps
+
+<Cards>
+  <Card title="Og Image Studio" href="/docs/experiments/og-image-studio">
+    Related experiment.
+  </Card>
+  <Card title="Favicon Brand Kit" href="/docs/experiments/favicon-brand-kit">
+    Related experiment.
+  </Card>
+</Cards>

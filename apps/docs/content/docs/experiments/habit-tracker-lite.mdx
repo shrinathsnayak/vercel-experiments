@@ -1,0 +1,69 @@
+---
+title: Habit Tracker Lite
+description: Habit plan via AI plus Redis/memory check-ins and streak helpers in logic.ts.
+---
+
+<ExperimentEmbed slug="habit-tracker-lite" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+Habit Tracker Lite is a Batch G vertical mini composition lab. Pure helpers live in `logic.ts`; AI calls return an honest `503` when no provider is configured.
+
+## Features
+
+- AI weekly plan
+- Redis/memory check-ins
+- computeStreak helper
+
+## Server Reference
+
+### `POST /api/plan`
+
+```json
+{ "habit": "..." }
+```
+
+| Status | Cause |
+| --- | --- |
+| `200` | Success (or stream) |
+| `400` | Missing / invalid input |
+| `503` | No AI provider (`AI_GATEWAY_API_KEY` or `OPENAI_API_KEY`) |
+
+Optional Redis persistence endpoints degrade to in-memory when unset.
+
+
+## Limitations
+
+- Not a health device.
+- Memory resets on cold start without Redis.
+
+## Deployment
+
+<ExperimentDeployButton slug="habit-tracker-lite" />
+
+## Local Development
+
+```bash
+cd apps/experiments/habit-tracker-lite
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `AI_GATEWAY_API_KEY` | Yes (or OpenAI) | Preferred AI provider |
+| `OPENAI_API_KEY` | No | Fallback |
+| `AI_MODEL` | No | Model override |
+| `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | No | Persistence |
+
+
+## Next Steps
+
+<Cards>
+  <Card title="Redis Cache Lab" href="/docs/experiments/redis-cache-lab">Related experiment.</Card>
+  <Card title="Memory Thread Lab" href="/docs/experiments/memory-thread-lab">Related experiment.</Card>
+</Cards>

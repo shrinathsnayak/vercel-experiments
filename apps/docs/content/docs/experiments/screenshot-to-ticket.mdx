@@ -1,0 +1,91 @@
+---
+title: Screenshot to Ticket
+description: Upload a screenshot - vision generateObject bug report (title, steps, severity). Honest 503 without AI.
+---
+
+<ExperimentEmbed slug="screenshot-to-ticket" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+Screenshot to Ticket is a Wave 3 Batch H composition lab. Pure helpers live in `logic.ts`; missing providers or stores degrade honestly (never fabricate AI output).
+
+## Features
+
+- Vision - structured bug ticket
+- Severity + repro steps
+- Honest 503 without AI
+
+## Server Reference
+
+### `POST /api/ticket`
+
+```json
+multipart/form-data: file=<image>
+```
+
+| Status | Cause |
+| --- | --- |
+| `200` | Success |
+| `400` | Missing image |
+| `503` | No AI provider |
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### Validate
+
+Inputs are length-capped in `logic.ts`; APIs return `400` for missing fields.
+
+</Step>
+<Step>
+
+### Run
+
+Route Handlers compose AI SDK, Redis/Neon, or `ImageResponse` as documented. Fallbacks include honest notes.
+
+</Step>
+</Steps>
+
+## Limitations
+
+- Not a real issue tracker.
+- 4MB image cap.
+- Model may miss UI nuance.
+
+## Use in your project
+
+Copy the Route Handler(s) and `logic.ts` from `apps/experiments/screenshot-to-ticket/`.
+
+## Deployment
+
+<ExperimentDeployButton slug="screenshot-to-ticket" />
+
+## Local Development
+
+```bash
+cd apps/experiments/screenshot-to-ticket
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `AI_GATEWAY_API_KEY` | Yes (or OpenAI) | Preferred AI provider |
+| `OPENAI_API_KEY` | No | Fallback |
+
+## Next Steps
+
+<Cards>
+  <Card title="Image Alt Studio" href="/docs/experiments/image-alt-studio">
+    Related experiment.
+  </Card>
+  <Card title="Github Issue Triage" href="/docs/experiments/github-issue-triage">
+    Related experiment.
+  </Card>
+</Cards>

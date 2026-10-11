@@ -1,0 +1,117 @@
+---
+title: Cost-Aware AI Lab
+description: Run the same prompt on two models via AI Gateway and compare latency plus labeled token/cost ESTIMATES.
+---
+
+<ExperimentEmbed slug="cost-aware-ai-lab" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+Cost-Aware AI Lab runs one prompt on two models (default `gpt-4o-mini` vs `gpt-4o` via Gateway), then shows latency, token usage, and a rough USD **estimate** clearly labeled as an estimate - not billing truth. Missing AI keys return `503`.
+
+## Features
+
+- **Dual model compare** – parallel `generateText` runs.
+- **Latency + tokens** – from AI SDK usage when available.
+- **Labeled estimates** – public-rate heuristics, not invoices.
+- **Honest `503`** when AI is not configured.
+
+## Server Reference
+
+### `POST /api/compare`
+
+```json
+{ "prompt": "..." }
+```
+
+#### Success (`200`)
+
+```json
+{
+  "runs": [
+    {
+      "model": "openai/gpt-4o-mini",
+      "latencyMs": 420,
+      "estimatedCostUsd": 0.0001,
+      "estimateNote": "..."
+    }
+  ],
+  "estimateDisclaimer": "..."
+}
+```
+
+| Status | Cause |
+| --- | --- |
+| `503` | No AI provider |
+| `400` | Empty prompt |
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### Resolve two models
+
+`AI_MODEL_A` / `AI_MODEL_B` or defaults.
+
+</Step>
+<Step>
+
+### Estimate
+
+`estimateCostUsd` from rough per-MTok tables - always labeled.
+
+</Step>
+</Steps>
+
+## Use Cases
+
+- Teach cost awareness in demos.
+- Compare latency before picking a default model.
+
+## Limitations
+
+- Estimates are not Gateway invoices.
+- Token counts depend on provider usage fields.
+
+## Use in your project
+
+Copy handlers from `apps/experiments/cost-aware-ai-lab/`.
+
+## Deployment
+
+<ExperimentDeployButton slug="cost-aware-ai-lab" />
+
+## Local Development
+
+```bash
+cd apps/experiments/cost-aware-ai-lab
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `AI_GATEWAY_API_KEY` | Yes (or `OPENAI_API_KEY`) | Provider |
+| `AI_MODEL_A` / `AI_MODEL_B` | No | Override models |
+
+## Vercel / Next.js Features Used
+
+- AI SDK `generateText`
+- AI Gateway
+- Route Handlers
+
+## Next Steps
+
+<Cards>
+  <Card title="AI Streaming Lab" href="/docs/experiments/ai-streaming-lab">
+    Streaming + tools through Gateway.
+  </Card>
+  <Card title="Flashcards from Notes" href="/docs/experiments/flashcards-from-notes">
+    Structured generateObject demo.
+  </Card>
+</Cards>

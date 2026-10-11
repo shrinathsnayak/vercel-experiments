@@ -1,0 +1,178 @@
+---
+title: PDF Quiz Lab
+description: Paste text or upload .txt/.md/.pdf, extract content, and generate an interactive 5-question MCQ quiz with generateObject.
+---
+
+<ExperimentEmbed slug="pdf-quiz-lab" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+PDF Quiz Lab turns source material into a scored multiple-choice quiz. Paste text, load the Vercel Blob sample paragraph, or upload `.txt` / `.md` / `.pdf`. The Route Handler extracts PDF text with `unpdf` when needed, truncates input to ~12k characters, and calls `generateObject` for exactly five questions. The client UI lets you answer and score locally - no fabricated quizzes when AI Gateway / OpenAI keys are missing (`503`).
+
+## Features
+
+- **Paste or upload** – `.txt`, `.md`, and `.pdf` via `multipart/form-data`, or JSON `{ text }`.
+- **PDF extraction** – `unpdf` `extractText`; parse failures return `400` with a clear message (no silent empty quizzes).
+- **Five MCQs** – Zod schema enforces four choices and `correctIndex` 0–3 plus an explanation.
+- **Interactive scoring** – client-side `scoreQuiz` from `logic.ts` after you submit answers.
+- **Sample text** – one-click paragraph about Vercel Blob for a quick demo without a file.
+- **Honest `503`** – never invents questions when no provider is configured.
+
+## Server Reference
+
+### `POST /api/quiz`
+
+Accepts JSON `{ "text": "..." }` or `multipart/form-data` with `text` and optional `file`.
+
+<TypeTable
+  type={{
+    text: {
+      description: "Source text (also accepted as a form field). Truncated to ~12k characters server-side.",
+      type: "string",
+    },
+    file: {
+      description: "Optional .txt / .md / .pdf upload (multipart only).",
+      type: "File",
+    },
+  }}
+/>
+
+#### Success (`200`)
+
+```json
+{
+  "questions": [
+    {
+      "question": "What does put() do in Vercel Blob?",
+      "choices": ["Upload", "Delete", "List", "Redirect"],
+      "correctIndex": 0,
+      "explanation": "put() uploads an object."
+    }
+  ],
+  "charsUsed": 312,
+  "provider": "ai-gateway"
+}
+```
+
+Exactly five questions are required by the Zod schema.
+
+#### Errors
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `503` | `{ error, setup, preferred }` | No `AI_GATEWAY_API_KEY` or `OPENAI_API_KEY` |
+| `400` | `{ error: "PDF parse failed..." }` | `unpdf` could not extract text |
+| `400` | `{ error: "Provide text or a file." }` | Empty input |
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### Gate the provider
+
+```ts
+if (!aiProviderAvailable()) {
+  return Response.json(AI_SETUP_BODY, { status: 503 });
+}
+```
+
+</Step>
+<Step>
+
+### Extract and truncate
+
+PDFs go through `extractText` from `unpdf`. All sources pass `truncateText` (`MAX_TEXT_CHARS = 12_000`) before the model call.
+
+</Step>
+<Step>
+
+### generateObject quiz
+
+```ts
+const result = await generateObject({
+  model: resolveModel(),
+  schema: quizSchema, // questions.length === 5
+  prompt: `Create exactly 5 multiple-choice quiz questions...`,
+});
+```
+
+</Step>
+<Step>
+
+### Score in the browser
+
+`scoreQuiz(answers, questions)` compares selected indexes to `correctIndex` without another model round-trip.
+
+</Step>
+</Steps>
+
+## Use Cases
+
+- Turn docs or blog drafts into quick comprehension checks.
+- Teach `generateObject` with a fixed-length array schema.
+- Show PDF text extraction before sending content to a model.
+
+## Limitations
+
+- Image-only PDFs often fail extraction - paste text instead.
+- No auth or rate limits; public deploys can spend your model quota.
+- Quiz quality depends on the model and how clear the source text is.
+- Source text is capped at ~12k characters.
+
+## Use in your project
+
+Copy `app/api/quiz/route.ts`, `lib/services.ts`, `lib/ai-model.ts`, and the helpers in `logic.ts`. Keep the `503` response. Wire a form that posts `FormData` the same way as `demo.tsx`.
+
+## Deployment
+
+<ExperimentDeployButton slug="pdf-quiz-lab" />
+
+Prompts for `AI_GATEWAY_API_KEY`. No Marketplace store is required.
+
+## Local Development
+
+```bash
+cd apps/experiments/pdf-quiz-lab
+pnpm install
+# Add AI_GATEWAY_API_KEY (or OPENAI_API_KEY) to .env.local
+pnpm dev
+```
+
+```bash
+curl -s -X POST http://localhost:3010/api/quiz \
+  -H "content-type: application/json" \
+  -d '{"text":"Vercel Blob is object storage for the web."}'
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `AI_GATEWAY_API_KEY` | Yes (or `OPENAI_API_KEY`) | Preferred provider |
+| `OPENAI_API_KEY` | No | Fallback |
+| `AI_MODEL` | No | Model override |
+
+## Vercel / Next.js Features Used
+
+- AI SDK `generateObject`
+- Vercel AI Gateway
+- Route Handlers (`maxDuration = 60`)
+- `unpdf` for PDF text extraction
+- Zod schemas
+
+## Next Steps
+
+<Cards>
+  <Card title="Chat with Your PDF" href="/docs/experiments/chat-with-your-pdf">
+    Chunked retrieval and cited answers over a document.
+  </Card>
+  <Card title="AI Streaming Lab" href="/docs/experiments/ai-streaming-lab">
+    streamText, generateObject, and tool calling basics.
+  </Card>
+  <Card title="Blob Storage Lab" href="/docs/experiments/blob-storage-lab">
+    Upload and store source files with Vercel Blob.
+  </Card>
+</Cards>

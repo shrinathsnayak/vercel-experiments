@@ -1,0 +1,86 @@
+---
+title: Geolocation Lab
+description: "Read Vercel geo headers from the request, show a localized greeting, and demo Intl currency/date formatting."
+---
+
+<ExperimentEmbed slug="geolocation-lab" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+The Geolocation Lab reads request headers that Vercel injects at the edge (`x-vercel-ip-country`, city, timezone, and related fields), then builds a localized greeting plus `Intl` currency and date samples. Locally those headers are usually absent - the API returns honest fallbacks instead of inventing a city.
+
+## Features
+
+- Read geo headers from a Route Handler
+- Localized greeting by country code
+- Intl currency and date formatting with timezone
+- Documented header list in the UI
+- Honest fallback when headers are missing
+
+## API Reference
+
+### GET /api/geo
+
+Returns extracted headers, the documented header list, and a `localized` payload (greeting, currency sample, formatted date, source).
+
+## Implementation Details
+
+<Files>
+  <Folder name="apps/experiments/geolocation-lab" defaultOpen>
+    <File name="demo.tsx" />
+    <File name="logic.ts" />
+    <File name="logic.test.ts" />
+  </Folder>
+</Files>
+
+`extractGeoHeaders` pulls known Vercel geo header names from a `Headers` object. `buildLocalizedDemo` maps country - currency/locale and formats with `Intl`. Source is `"vercel-headers"` only when country or city was present.
+
+## Use Cases
+
+- Country-aware landing copy
+- Currency defaults for pricing UI
+- Teaching edge request metadata
+
+## Limitations
+
+- Headers exist on Vercel edge deployments; localhost usually falls back.
+- IP geolocation is approximate - not identity.
+- City values may be URL-encoded by the platform.
+
+## Use in your project
+
+Deploy or copy `apps/experiments/geolocation-lab/` and adapt the Route Handlers and pure helpers in `logic.ts`. Keep honest fallbacks when optional services are missing.
+
+## Deployment
+
+<ExperimentDeployButton slug="geolocation-lab" />
+
+## Local Development
+
+```bash
+cd apps/experiments/geolocation-lab
+pnpm install
+pnpm dev
+```
+
+Open http://localhost:3010
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| _(none)_ | - | Works without extra secrets |
+
+## Vercel / Next.js Features Used
+
+- Route Handlers
+- Request headers
+- Intl
+
+## Next Steps
+
+- Explore related labs from the registry `relatedSlugs`
+- Harden secrets, auth, and input limits before production
+- Prefer platform primitives when you outgrow demo patterns

@@ -1,0 +1,89 @@
+---
+title: Auth-Gated Preview
+description: Password cookie gate unlocks draft/preview content while public view stays published-only.
+---
+
+<ExperimentEmbed slug="auth-gated-preview" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+Auth-Gated Preview is a Wave 3 Batch H composition lab. Pure helpers live in `logic.ts`; missing providers or stores degrade honestly (never fabricate AI output).
+
+## Features
+
+- Password unlock sets preview cookie
+- Draft vs published content
+- Lock clears cookie
+
+## API Reference
+
+### `POST /api/unlock · GET /api/content · POST /api/lock`
+
+```json
+{ "password": "preview" }
+```
+
+| Status | Cause |
+| --- | --- |
+| `200` | Success |
+| `401` | Bad password |
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### Validate
+
+Inputs are length-capped in `logic.ts`; APIs return `400` for missing fields.
+
+</Step>
+<Step>
+
+### Run
+
+Route Handlers compose AI SDK, Redis/Neon, or `ImageResponse` as documented. Fallbacks include honest notes.
+
+</Step>
+</Steps>
+
+## Limitations
+
+- Single shared password.
+- No user accounts.
+- Educational gate only.
+
+## Use in your project
+
+Copy the Route Handler(s) and `logic.ts` from `apps/experiments/auth-gated-preview/`.
+
+## Deployment
+
+<ExperimentDeployButton slug="auth-gated-preview" />
+
+## Local Development
+
+```bash
+cd apps/experiments/auth-gated-preview
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `PREVIEW_PASSWORD` | No | Gate password (default preview) |
+
+## Next Steps
+
+<Cards>
+  <Card title="Draft Mode Cms Lab" href="/docs/experiments/draft-mode-cms-lab">
+    Related experiment.
+  </Card>
+  <Card title="Edge Auth Lab" href="/docs/experiments/edge-auth-lab">
+    Related experiment.
+  </Card>
+</Cards>

@@ -1,0 +1,372 @@
+---
+title: ISR and Revalidation Playground
+description: Explore static rendering, revalidation intervals, on-demand refresh, and content freshness timelines.
+---
+
+<ExperimentEmbed slug="isr-revalidation-playground" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+The ISR and Revalidation Playground teaches how Incremental Static Regeneration (ISR) keeps a page static while still letting it refresh over time. It is built with Next.js, React client state, a small pure TypeScript state machine (`apps/experiments/isr-revalidation-playground/logic.ts`), and one Route Handler (`app/api/isr-demo/route.ts`). It has no external services and needs no environment variables.
+
+The problem it addresses is the mental model gap between a `revalidate` number and what a visitor actually sees: when is a page fresh, when is it stale, and what changes when you trigger an on-demand refresh? The experiment offers two clearly separated modes:
+
+- **Simulated timeline** - a deterministic, educational state machine. It is **not** telemetry from Vercel or from Next.js.
+- **Real demo route** - a real `fetch` against `/api/isr-demo`, showing the actual `Cache-Control` header this app's Route Handler sets for a given `revalidate` value. It is a header demo, not an ISR page.
+
+## Features
+
+- Configure `revalidate` (seconds) and see the matching `export const revalidate = N;` line.
+- Step through a simulated timeline of 2–12 ticks, with 1–120 seconds per tick.
+- Optionally inject an **on-demand revalidation** at a chosen tick to see the cache entry reset.
+- Switch to **Real demo route** mode to call `GET /api/isr-demo` and inspect status, `cache-control`, and the JSON body.
+- Copy a generated App Router snippet using `export const revalidate`.
+- Reset button restores the defaults (`revalidate=60`, 6 ticks, 30 s per tick, simulated mode).
+
+## API Reference
+
+### `GET /api/isr-demo`
+
+Returns a small JSON body and sets `Cache-Control` derived from the `revalidate` query parameter. The route reads `request.nextUrl.searchParams`, so it is dynamic.
+
+<TypeTable
+  type={{
+    revalidate: {
+      description:
+        "Seconds to use for s-maxage. Coerced to a number, must be an integer from 0 to 86400. If the value is missing, the default is 60. If it is present but invalid (non-numeric, fractional, negative, or above 86400), the handler silently falls back to 60 instead of returning an error.",
+      type: "number (query string)",
+      default: "60",
+    },
+  }}
+/>
+
+#### Request
+
+```bash
+curl -i "http://localhost:3000/api/isr-demo?revalidate=60"
+```
+
+#### Response - `revalidate` greater than 0
+
+```http
+HTTP/1.1 200 OK
+content-type: application/json
+x-isr-demo: 1
+cache-control: public, s-maxage=60, stale-while-revalidate=120
+```
+
+```json
+{
+  "revalidate": 60,
+  "generatedAt": "2026-10-11T05:56:00.000Z",
+  "note": "Demo API route illustrating revalidate-style cache headers - not Vercel platform metrics."
+}
+```
+
+The `stale-while-revalidate` value is always `revalidate * 2`.
+
+#### Response - `revalidate=0`
+
+```http
+HTTP/1.1 200 OK
+content-type: application/json
+x-isr-demo: 1
+cache-control: no-store
+```
+
+```json
+{
+  "revalidate": 0,
+  "generatedAt": "2026-10-11T05:56:00.000Z",
+  "note": "Demo API route illustrating revalidate-style cache headers - not Vercel platform metrics."
+}
+```
+
+#### Errors
+
+This route does not return 4xx responses. Invalid input is handled by falling back to the default:
+
+```bash
+# Out of range, fractional, or non-numeric values all behave like revalidate=60
+curl -i "http://localhost:3000/api/isr-demo?revalidate=999999"
+curl -i "http://localhost:3000/api/isr-demo?revalidate=abc"
+```
+
+```json
+{
+  "revalidate": 60,
+  "generatedAt": "2026-10-11T05:56:00.000Z",
+  "note": "Demo API route illustrating revalidate-style cache headers - not Vercel platform metrics."
+}
+```
+
+<Callout type="info">
+  The headers shown are exactly what the handler sets. In production, the CDN and any intermediary caches apply their own rules, so what a browser sees and what is cached at the edge are not guaranteed to match this output. Treat the route as a way to read and compare header values, not as a measurement of Vercel cache behavior.
+</Callout>
+
+## Implementation Details
+
+### Request / flow
+
+<Steps>
+<Step>
+
+### Choose a `revalidate` interval
+
+The demo component passes the number through `revalidateAfter`, which floors the value and clamps it to be non-negative:
+
+```ts
+export function revalidateAfter(seconds: number): { revalidate: number } {
+  const revalidate = Math.max(0, Math.floor(seconds));
+  return { revalidate };
+}
+```
+
+</Step>
+<Step>
+
+### Classify freshness
+
+`getFreshnessState` compares the age of the generated page with the interval. A `revalidate` of `0` is always treated as stale.
+
+```ts
+export function getFreshnessState(
+  generatedAtSeconds: number,
+  nowSeconds: number,
+  revalidateSec: number,
+  revalidating: boolean,
+): IsrFreshnessState {
+  if (revalidating) return 'revalidating';
+  const age = nowSeconds - generatedAtSeconds;
+  if (revalidateSec <= 0) return 'stale';
+  if (age < revalidateSec) return 'fresh';
+  return 'stale';
+}
+```
+
+</Step>
+<Step>
+
+### Walk the timeline
+
+`simulateIsrTimeline` loops over ticks. Tick 1 is the initial static generation. On the **on-demand tick**, the generated-at time resets to the current elapsed time. When a tick finds the page stale (and it is not the last tick), the simulator reports `revalidating` and immediately treats the page as regenerated for the next tick.
+
+```ts
+if (onDemand) {
+  generatedAt = elapsed;
+  revalidating = false;
+}
+
+let state = getFreshnessState(generatedAt, elapsed, revalidateSec, revalidating);
+
+// ...
+} else if (state === 'stale') {
+  note = `Stale static HTML (age ${elapsed - generatedAt}s ≥ revalidate). Next request may trigger background regeneration.`;
+  if (revalidateSec > 0 && tick < tickCount) {
+    revalidating = true;
+    state = 'revalidating';
+    note = 'Background revalidation in progress - stale page may still be served.';
+    generatedAt = elapsed;
+    revalidating = false;
+  }
+}
+```
+
+</Step>
+<Step>
+
+### Optionally probe the real route
+
+In **Real demo route** mode the client calls the Route Handler with `cache: 'no-store'` so the browser does not reuse an earlier response, then prints the status, `cache-control` header, and body:
+
+```ts
+const res = await fetch(`/api/isr-demo?revalidate=${config.revalidate}`, {
+  cache: 'no-store',
+});
+```
+
+</Step>
+</Steps>
+
+### Default timeline
+
+With the defaults (`revalidate=60`, 6 ticks, 30 s per tick, no on-demand tick) the state machine produces this sequence (verified by running `simulateIsrTimeline(60, 6, 30)`):
+
+| Tick | Elapsed | State | Note |
+| --- | --- | --- | --- |
+| 1 | 0 s | `fresh` | `Static page generated at build or first request.` |
+| 2 | 30 s | `fresh` | `Served from cache (age 30s < revalidate 60s).` |
+| 3 | 60 s | `revalidating` | `Background revalidation in progress - stale page may still be served.` |
+| 4 | 90 s | `fresh` | `Served from cache (age 30s < revalidate 60s).` |
+| 5 | 120 s | `revalidating` | `Background revalidation in progress - stale page may still be served.` |
+| 6 | 150 s | `fresh` | `Served from cache (age 30s < revalidate 60s).` |
+
+Setting **On-demand revalidate at tick** to `4` makes tick 4 report `On-demand revalidate: cache entry regenerated now.` and resets the age clock at that point.
+
+### Route Handler source
+
+```ts
+const querySchema = z.object({
+  revalidate: z.coerce.number().int().min(0).max(86400).default(60),
+});
+
+export async function GET(request: NextRequest) {
+  const parsed = querySchema.safeParse(Object.fromEntries(request.nextUrl.searchParams));
+  const revalidateSec = parsed.success ? parsed.data.revalidate : 60;
+  const { revalidate } = revalidateAfter(revalidateSec);
+
+  // ...
+  if (revalidate === 0) {
+    headers['cache-control'] = 'no-store';
+  } else {
+    headers['cache-control'] = `public, s-maxage=${revalidate}, stale-while-revalidate=${revalidate * 2}`;
+  }
+
+  return NextResponse.json(body, { headers });
+}
+```
+
+## Use Cases
+
+- Teaching teammates the difference between a fresh page, a stale page, and a page being regenerated.
+- Comparing what a short interval (for example 10 s) and a long interval (for example 3600 s) mean for content freshness.
+- Showing why an on-demand refresh is useful after a CMS publish instead of waiting for the interval to expire.
+- Quickly generating a `Cache-Control` header with `s-maxage` and `stale-while-revalidate` values to reuse in your own API routes.
+
+## Limitations
+
+Security notes from the registry:
+
+- Simulated freshness timeline is educational.
+- Real route mode only reflects this app's demo handler headers.
+
+Limits and behaviors taken from the code:
+
+- The simulator does not model concurrent requests, CDN regions, or request timing. It advances one tick at a time.
+- The `revalidating` state is a presentation step: the simulator marks the stale tick as `revalidating` and treats the page as regenerated before the next tick. `stale` therefore only appears on the final tick, or on every tick when `revalidate` is `0` (tick 1 shows the "generated" note but still reports `stale`).
+- On-demand revalidation is a tick input in the simulator only. The demo does not call `revalidatePath` or `revalidateTag`. A helper, `onDemandRevalidate`, exists in `logic.ts` but the demo UI does not use it.
+- `/api/isr-demo` is a Route Handler that sets headers. It does not render or regenerate a statically cached page.
+- The UI inputs declare ranges (`revalidate` 0–3600, ticks 2–12, seconds per tick 1–120), but they are plain HTML attributes. The API accepts 0–86400.
+- The generated snippet uses `export const revalidate = N`. The registry also lists Cache Components as a technology; if you enable `cacheComponents` in your own project, follow the Next.js guide for [ISR with Cache Components](https://nextjs.org/docs/app/guides/incremental-static-regeneration-cache-components) and use `use cache` with `cacheLife` instead of route segment `revalidate`. This app does not enable `cacheComponents` in `next.config.mjs`.
+
+## Use in your project
+
+Copy the state machine from `logic.ts` into a utility or a learning page, and the header logic into any Route Handler:
+
+```ts
+// lib/isr.ts
+export type IsrFreshnessState = 'fresh' | 'stale' | 'revalidating';
+
+export function getFreshnessState(
+  generatedAtSeconds: number,
+  nowSeconds: number,
+  revalidateSec: number,
+  revalidating: boolean,
+): IsrFreshnessState {
+  if (revalidating) return 'revalidating';
+  const age = nowSeconds - generatedAtSeconds;
+  if (revalidateSec <= 0) return 'stale';
+  return age < revalidateSec ? 'fresh' : 'stale';
+}
+
+export function cacheControlFor(revalidate: number): string {
+  if (revalidate <= 0) return 'no-store';
+  return `public, s-maxage=${revalidate}, stale-while-revalidate=${revalidate * 2}`;
+}
+```
+
+```ts
+// app/api/example/route.ts
+import { NextResponse } from 'next/server';
+import { cacheControlFor } from '@/lib/isr';
+
+export async function GET() {
+  return NextResponse.json(
+    { generatedAt: new Date().toISOString() },
+    { headers: { 'cache-control': cacheControlFor(60) } },
+  );
+}
+```
+
+For a real ISR page, the App Router snippet the demo generates looks like this:
+
+```tsx
+// app/blog/[slug]/page.tsx
+export const revalidate = 60;
+
+export default async function Page() {
+  const posts = await fetchPosts();
+  return <ArticleList posts={posts} />;
+}
+```
+
+## Deployment
+
+<ExperimentDeployButton slug="isr-revalidation-playground" />
+
+
+This experiment needs no Marketplace stores and no environment variables, so it works with a plain Vercel deploy. Use the Deploy button on this experiment page. No `deploymentUrl` is registered for this experiment specifically.
+
+## Local Development
+
+```bash
+pnpm install
+pnpm dev
+```
+
+Open the experiment page, then try the real route directly:
+
+```bash
+# Default interval (60)
+curl -i "http://localhost:3000/api/isr-demo"
+
+# Short interval
+curl -i "http://localhost:3000/api/isr-demo?revalidate=10"
+
+# Disable caching
+curl -i "http://localhost:3000/api/isr-demo?revalidate=0"
+```
+
+The pure logic is covered by `apps/experiments/isr-revalidation-playground/logic.test.ts`:
+
+```bash
+pnpm test
+```
+
+## Configuration
+
+| Item | Required | Notes |
+| --- | --- | --- |
+| Environment variables | No | None are read by this experiment. |
+| External services | No | None. |
+| `revalidate` query param | No | Integer 0–86400, defaults to 60. |
+
+## Vercel / Next.js Features Used
+
+- [Incremental Static Regeneration](https://nextjs.org/docs/app/guides/incremental-static-regeneration) - the concept the simulator teaches.
+- [Route Handlers](https://nextjs.org/docs/app/api-reference/file-conventions/route) - `app/api/isr-demo/route.ts`.
+- [`revalidatePath`](https://nextjs.org/docs/app/api-reference/functions/revalidatePath) and [`revalidateTag`](https://nextjs.org/docs/app/api-reference/functions/revalidateTag) - the real APIs behind on-demand revalidation (referenced, not called, in this demo).
+- [`Cache-Control` `s-maxage` and `stale-while-revalidate`](https://vercel.com/docs/caching) - header semantics used by the demo route.
+- [Cache Components](https://nextjs.org/docs/app/getting-started/caching) - the newer caching model with `use cache` and `cacheLife`.
+
+## Next Steps
+
+<Cards>
+  <Card
+    title="Cache Behavior Explorer"
+    href="/docs/experiments/cache-behavior-explorer"
+    description="Visualize cache hits, misses, and stale responses in simulated and real HTTP modes."
+  />
+  <Card
+    title="Streaming SSR Playground"
+    href="/docs/experiments/streaming-ssr-playground"
+    description="Compare blocking and streamed rendering with Suspense boundaries."
+  />
+  <Card
+    title="Next.js ISR guide"
+    href="https://nextjs.org/docs/app/guides/incremental-static-regeneration"
+    description="Official guide to Incremental Static Regeneration."
+  />
+</Cards>

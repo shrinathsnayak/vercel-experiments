@@ -1,0 +1,69 @@
+---
+title: Accessibility Copy Fix
+description: Paste UI/marketing copy - local heuristics plus AI rewrites for a11y issues.
+---
+
+<ExperimentEmbed slug="accessibility-copy-fix" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+Accessibility Copy Fix is a Batch G vertical mini composition lab. Pure helpers live in `logic.ts`; AI calls return an honest `503` when no provider is configured.
+
+## Features
+
+- Local a11y heuristics
+- AI issue + rewrite list
+- Honest 503
+
+## Server Reference
+
+### `POST /api/fix`
+
+```json
+{ "copy": "..." }
+```
+
+| Status | Cause |
+| --- | --- |
+| `200` | Success (or stream) |
+| `400` | Missing / invalid input |
+| `503` | No AI provider (`AI_GATEWAY_API_KEY` or `OPENAI_API_KEY`) |
+
+
+
+
+## Limitations
+
+- Not a full WCAG audit.
+- Heuristics are incomplete.
+- No axe-core run.
+
+## Deployment
+
+<ExperimentDeployButton slug="accessibility-copy-fix" />
+
+## Local Development
+
+```bash
+cd apps/experiments/accessibility-copy-fix
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `AI_GATEWAY_API_KEY` | Yes (or OpenAI) | Preferred AI provider |
+| `OPENAI_API_KEY` | No | Fallback |
+| `AI_MODEL` | No | Model override |
+
+
+## Next Steps
+
+<Cards>
+  <Card title="Image Alt Studio" href="/docs/experiments/image-alt-studio">Related experiment.</Card>
+  <Card title="Ab Landing Copy Lab" href="/docs/experiments/ab-landing-copy-lab">Related experiment.</Card>
+</Cards>

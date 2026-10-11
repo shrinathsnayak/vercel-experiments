@@ -1,0 +1,284 @@
+---
+title: Streaming SSR Playground
+description: Compare blocking and streamed rendering with Suspense boundaries and a timeline of render events.
+---
+
+<ExperimentEmbed slug="streaming-ssr-playground" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+The Streaming SSR Playground has two parts. The main page is a **simulator**: you set artificial delays for a header, main, and footer region, and it draws a timeline of when a blocking render and a streamed render would reach each milestone. A second page, **Suspense stream demo** (`/stream-demo` inside the standalone experiment app), is a **real** React Server Component page where three delayed components sit inside `<Suspense>` boundaries so you can watch fallbacks stream in and resolve after you deploy or run the experiment locally.
+
+It is built with React Suspense and the Next.js App Router. The problem it teaches is the difference between waiting for every data dependency before sending any HTML and sending a shell immediately, then streaming each slow section when it is ready.
+
+## Features
+
+- **Adjustable delays** – three sliders (header, main, footer) from 50 to 1200 ms in 50 ms steps. Defaults: 200, 600, and 300 ms.
+- **Side-by-side timelines** – a "Blocking SSR" card and a "Streaming SSR + Suspense" card with event bars scaled to the longest event.
+- **Summary line** – shows the simulated blocking completion time and the streaming first-content slot.
+- **Real stream page** – server components with 400, 900, and 600 ms artificial delays, each wrapped in its own Suspense boundary with a skeleton fallback.
+- **Honest labelling** – the simulator is marked as educational, and the stream page says its delays are intentional rather than benchmark results.
+
+## UI Reference
+
+This experiment has no API routes. The simulator is a client component that calls two pure functions from `apps/experiments/streaming-ssr-playground/logic.ts`.
+
+<TypeTable
+  type={{
+    "delays.header": {
+      description: "Simulated time (ms) for the header slot to resolve.",
+      type: "number",
+      required: true,
+    },
+    "delays.main": {
+      description: "Simulated time (ms) for the main slot to resolve.",
+      type: "number",
+      required: true,
+    },
+    "delays.footer": {
+      description: "Simulated time (ms) for the footer slot to resolve.",
+      type: "number",
+      required: true,
+    },
+  }}
+/>
+
+Both builders return `TimelineEvent[]`:
+
+```ts
+export type RenderPhase = 'shell' | 'header' | 'main' | 'footer' | 'complete';
+
+export type TimelineEvent = {
+  ms: number;
+  phase: RenderPhase;
+  mode: 'blocking' | 'streaming';
+  detail: string;
+};
+```
+
+With the default delays, the blocking timeline is `shell@0`, `header@200`, `main@800`, `footer@1100`, `complete@1100` and the streaming timeline is `shell@0`, `header@200`, `main@800`, `footer@1100`, `complete@1100`. The difference is in what the browser has at each point: blocking receives nothing until the end, streaming receives the shell at 0 ms and each slot as it finishes.
+
+### Pages
+
+| Path | Type | Purpose |
+| --- | --- | --- |
+| `/` (standalone experiment app) | Simulated | Slider-driven timeline comparison |
+| `/stream-demo` (standalone experiment app) | Real | Delayed server components inside Suspense boundaries |
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### Build the blocking timeline
+
+In a blocking render nothing is flushed until the slowest dependency finishes, so every event is described as "still blocked" until the end and the final document is flushed at `header + main + footer`.
+
+```ts
+export function buildBlockingTimeline(delays: {
+  header: number;
+  main: number;
+  footer: number;
+}): TimelineEvent[] {
+  const endHeader = delays.header;
+  const endMain = endHeader + delays.main;
+  const endFooter = endMain + delays.footer;
+  return [
+    { ms: 0, phase: 'shell', mode: 'blocking', detail: 'Request starts - browser waits for full HTML.' },
+    { ms: endHeader, phase: 'header', mode: 'blocking', detail: 'Header data resolved (still blocked).' },
+    { ms: endMain, phase: 'main', mode: 'blocking', detail: 'Main content resolved (still blocked).' },
+    { ms: endFooter, phase: 'footer', mode: 'blocking', detail: 'Footer resolved.' },
+    { ms: endFooter, phase: 'complete', mode: 'blocking', detail: 'Full document flushed to client.' },
+  ];
+}
+```
+
+</Step>
+<Step>
+
+### Build the streaming timeline
+
+The streaming version emits a shell at `0 ms` and then one event per Suspense slot, using the same cumulative times as the blocking version.
+
+```ts
+export function buildStreamingTimeline(delays: {
+  header: number;
+  main: number;
+  footer: number;
+}): TimelineEvent[] {
+  return [
+    { ms: 0, phase: 'shell', mode: 'streaming', detail: 'Shell HTML streamed immediately.' },
+    { ms: delays.header, phase: 'header', mode: 'streaming', detail: 'Suspense boundary: header slot resolved.' },
+    { ms: delays.header + delays.main, phase: 'main', mode: 'streaming', detail: 'Suspense boundary: main slot resolved.' },
+    { ms: delays.header + delays.main + delays.footer, phase: 'footer', mode: 'streaming', detail: 'Suspense boundary: footer slot resolved.' },
+    { ms: delays.header + delays.main + delays.footer, phase: 'complete', mode: 'streaming', detail: 'All boundaries complete.' },
+  ];
+}
+```
+
+</Step>
+<Step>
+
+### Summarise and draw
+
+The demo computes two numbers and scales each bar against the largest `ms` in its list (minimum width 8%).
+
+```ts
+const blockingTtfb = blocking.at(-1)?.ms ?? 0;
+const streamingFirstByte = streaming[1]?.ms ?? 0;
+```
+
+For the defaults this prints `1100ms` for blocking and `200ms` for the first streamed content slot.
+
+</Step>
+<Step>
+
+### Real Suspense streaming
+
+The stream page is a server component. Each `DelayedBlock` awaits a timer, and each is wrapped in its own `<Suspense>` with a placeholder fallback.
+
+```tsx
+async function DelayedBlock({ label, ms, className }: { label: string; ms: number; className?: string }) {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+  return (
+    <div className={className}>
+      <p className="text-sm font-medium">{label}</p>
+      <p className="text-xs text-fd-muted-foreground">Rendered after ~{ms}ms artificial delay.</p>
+    </div>
+  );
+}
+
+<Suspense fallback={<Fallback label="header" />}>
+  <DelayedBlock label="Header section" ms={400} className="rounded-md border border-fd-border p-4" />
+</Suspense>
+<Suspense fallback={<Fallback label="main content" />}>
+  <DelayedBlock label="Main content" ms={900} className="rounded-md border border-fd-border p-4" />
+</Suspense>
+<Suspense fallback={<Fallback label="footer" />}>
+  <DelayedBlock label="Footer section" ms={600} className="rounded-md border border-fd-border p-4" />
+</Suspense>
+```
+
+</Step>
+</Steps>
+
+## Use Cases
+
+- Show a team why a slow data dependency should be isolated behind a Suspense boundary rather than blocking the entire page.
+- Teach the vocabulary: shell, boundary, fallback, flush.
+- Try different delay mixes to see how a very slow footer does or does not matter once the main content is visible.
+- Use the stream page as a quick manual check that streaming works on your hosting platform (fallbacks should appear before the content).
+
+## Limitations
+
+Security notes for this experiment:
+
+- Timeline events are labeled as educational when simulated.
+- Real streamed routes do not fabricate server timing metrics.
+
+Additional limits that come from the code:
+
+- **The simulator is not a measurement.** It adds the three delays together and never talks to the server, so it does not reflect your network, hydration, or CPU time.
+- **Streaming times are sequential in the model.** The simulated streaming timeline uses `header`, `header + main`, and `header + main + footer`. Real sibling Suspense boundaries start rendering concurrently, so in the real stream page the three blocks resolve at about 400, 900, and 600 ms (the page completes around 900 ms), not cumulatively. Use the real page to see concurrent behaviour.
+- **"Blocking time-to-first-byte" is a completion time.** The label in the UI reports when the final blocking event happens, which is when the whole document would be flushed in the model.
+- **The stream page uses `setTimeout` as a stand-in for data fetching.** Delays are fixed (400, 900, 600 ms) and not configurable.
+- **No timing is recorded.** The real route shows the final result but does not capture or display `Server-Timing`, TTFB, or other metrics.
+- **Proxies and CDNs can buffer.** Streaming depends on the platform not buffering the response; some intermediaries do.
+
+## Use in your project
+
+A minimal page that streams a slow section while serving the shell immediately:
+
+```tsx
+// app/dashboard/page.tsx
+import { Suspense } from 'react';
+
+async function Revenue() {
+  const data = await fetch('https://api.example.com/revenue', { cache: 'no-store' }).then((r) => r.json());
+  return <p>Revenue: {data.total}</p>;
+}
+
+function RevenueSkeleton() {
+  return <p role="status">Loading revenue…</p>;
+}
+
+export default function DashboardPage() {
+  return (
+    <main>
+      <h1>Dashboard</h1> {/* part of the shell: sent immediately */}
+      <Suspense fallback={<RevenueSkeleton />}>
+        <Revenue /> {/* streamed when the fetch resolves */}
+      </Suspense>
+    </main>
+  );
+}
+```
+
+And a tiny pure helper, adapted from the lab, for explaining timings in docs or tests:
+
+```ts
+export function timeline(delays: { header: number; main: number; footer: number }) {
+  const blockingDone = delays.header + delays.main + delays.footer;
+  return {
+    blockingDone,
+    streamingShell: 0,
+    // Concurrent boundaries finish with the slowest one, not the sum.
+    streamingConcurrentDone: Math.max(delays.header, delays.main, delays.footer),
+  };
+}
+```
+
+## Deployment
+
+<ExperimentDeployButton slug="streaming-ssr-playground" />
+
+
+No services or environment variables are needed, so any Next.js host works. On Vercel, streaming is supported for Server Components and Route Handlers; open the stream page on your deployment to verify that fallbacks appear before the content. Use the Deploy button on this experiment page.
+
+## Local Development
+
+```bash
+pnpm install
+pnpm dev
+```
+
+From the experiment folder (`cd apps/experiments/streaming-ssr-playground && pnpm install && pnpm dev`), open:
+
+- `http://localhost:3010/` for the simulator.
+- `http://localhost:3010/stream-demo` for the real streamed page.
+
+To watch the stream arrive in a terminal, request the stream page with `curl` and disable buffering:
+
+```bash
+curl -N http://localhost:3010/stream-demo
+```
+
+Early output should contain the skeleton fallbacks, with the real content arriving in later chunks.
+
+## Configuration
+
+None. Simulator defaults (200, 600, 300 ms) are `useState` values in `apps/experiments/streaming-ssr-playground/demo.tsx`, and the stream page's delays (400, 900, 600 ms) are props in `apps/experiments/streaming-ssr-playground/app/stream-demo/page.tsx`.
+
+## Vercel / Next.js Features Used
+
+- [Streaming in the App Router](https://nextjs.org/docs/app/guides/streaming) with React `<Suspense>` boundaries.
+- [React Server Components](https://react.dev/reference/rsc/server-components) with `async` components.
+- [`loading.js`](https://nextjs.org/docs/app/api-reference/file-conventions/loading), the file-convention equivalent of a route-level Suspense boundary.
+- [Vercel Functions streaming](https://vercel.com/docs/functions/streaming-functions) support for incremental responses.
+- Client components with `useMemo` for the simulator.
+
+## Next Steps
+
+<Cards>
+  <Card title="ISR and Revalidation Playground" href="/docs/experiments/isr-revalidation-playground">
+    Explore revalidation intervals and on-demand freshness.
+  </Card>
+  <Card title="Streaming guide" href="https://nextjs.org/docs/app/guides/streaming">
+    How streaming works in Next.js.
+  </Card>
+  <Card title="React Suspense" href="https://react.dev/reference/react/Suspense">
+    The primitive behind streamed boundaries.
+  </Card>
+</Cards>

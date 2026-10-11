@@ -1,0 +1,115 @@
+---
+title: Stripe Events Sandbox
+description: Paste Stripe-like JSON, verify real HMAC signatures (t=/v1=), and append an idempotent Redis/memory event log.
+---
+
+<ExperimentEmbed slug="stripe-events-sandbox" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+Stripe Events Sandbox lets you paste event JSON, sign it with Web Crypto HMAC (Stripe `t=,v1=` header shape), verify server-side, and append an idempotent log keyed by event `id` in Redis or memory.
+
+## Features
+
+- **Real HMAC** – `signStripePayload` / `verifyStripeSignature` in `logic.ts`.
+- **Idempotent log** – duplicate event ids are marked, not re-processed.
+- **Redis or memory** – seen-set + event list.
+- Demo secret baked in; override with `STRIPE_WEBHOOK_SECRET`.
+
+## API Reference
+
+### `POST /api/events`
+
+```json
+{
+  "rawBody": "{\"id\":\"evt_1\",\"type\":\"ping\"}",
+  "signature": "t=1700000000,v1=…"
+}
+```
+
+#### Success (`200`)
+
+```json
+{ "entry": { "verified": true, "duplicate": false }, "storage": "redis" }
+```
+
+### `GET /api/events`
+
+Lists logged events.
+
+| Status | Cause |
+| --- | --- |
+| `400` | Bad/missing body or signature |
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### Sign + verify
+
+Payload is `${timestamp}.${rawBody}` with HMAC-SHA256 — same shape as Stripe webhook signatures.
+
+</Step>
+<Step>
+
+### Idempotency
+
+Successful verifies mark `event.id` in a Redis set (or memory `Set`) before appending the log.
+
+</Step>
+</Steps>
+
+## Use Cases
+
+- Practice webhook crypto without a Stripe account.
+- Compare with `webhook-signature-verifier`.
+- Teach duplicate delivery handling.
+
+## Limitations
+
+- Not a full Stripe SDK integration.
+- Demo secret is public by design.
+- No Stripe API calls.
+
+## Use in your project
+
+Copy `logic.ts` and `/api/events` from `apps/experiments/stripe-events-sandbox/`.
+
+## Deployment
+
+<ExperimentDeployButton slug="stripe-events-sandbox" />
+
+## Local Development
+
+```bash
+cd apps/experiments/stripe-events-sandbox
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `STRIPE_WEBHOOK_SECRET` | No | Override demo signing secret |
+| `UPSTASH_REDIS_REST_URL` / `TOKEN` | No | Durable log + seen set |
+
+## Vercel / Next.js Features Used
+
+- Web Crypto HMAC
+- Upstash Redis
+- Route Handlers
+
+## Next Steps
+
+<Cards>
+  <Card title="Webhook Signature Verifier" href="/docs/experiments/webhook-signature-verifier">
+    Generic HMAC + replay window.
+  </Card>
+  <Card title="Webhook Playground" href="/docs/experiments/webhook-playground">
+    Capture and inspect webhook traffic.
+  </Card>
+</Cards>

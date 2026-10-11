@@ -1,0 +1,117 @@
+---
+title: Flashcards from Notes
+description: Turn study notes into up to 12 flip cards with generateObject, then export the deck as JSON.
+---
+
+<ExperimentEmbed slug="flashcards-from-notes" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+Flashcards from Notes converts a notes textarea into up to 12 `{ front, back }` cards via `generateObject`. The UI flips cards on click and can export the deck as JSON. `clampCards` trims and caps the array. No AI keys - `503`.
+
+## Features
+
+- **Notes - cards** – max 12 flashcards from capped notes (~10k chars).
+- **Flip UI** – tap a card to toggle front/back.
+- **Export JSON** – download `{ cards: [...] }`.
+- **Sample notes** – Cache-Control / ISR / Suspense snippet.
+- **Honest unavailable state**.
+
+## Server Reference
+
+### `POST /api/flashcards`
+
+```json
+{ "notes": "..." }
+```
+
+#### Success (`200`)
+
+```json
+{
+  "cards": [
+    { "front": "What is stale-while-revalidate?", "back": "Serve stale while revalidating in the background." }
+  ],
+  "provider": "ai-gateway"
+}
+```
+
+| Status | Cause |
+| --- | --- |
+| `503` | No AI provider |
+| `400` | Empty notes |
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### Truncate notes
+
+`truncateText(notes, MAX_NOTES_CHARS)`.
+
+</Step>
+<Step>
+
+### generateObject + clamp
+
+Zod schema allows at most `MAX_CARDS` (12). `clampCards` trims whitespace and enforces the cap again.
+
+</Step>
+</Steps>
+
+## Use Cases
+
+- Study decks from meeting notes or docs.
+- Teach fixed-max array schemas with `generateObject`.
+- Exportable flashcard JSON for other apps.
+
+## Limitations
+
+- Card quality depends on note clarity.
+- No spaced-repetition scheduling.
+- No auth / rate limits.
+
+## Use in your project
+
+Copy the flashcards Route Handler and flip UI pattern from `demo.tsx`. Persist decks to Blob or Postgres as needed.
+
+## Deployment
+
+<ExperimentDeployButton slug="flashcards-from-notes" />
+
+## Local Development
+
+```bash
+cd apps/experiments/flashcards-from-notes
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `AI_GATEWAY_API_KEY` | Yes (or `OPENAI_API_KEY`) | Preferred provider |
+| `OPENAI_API_KEY` | No | Fallback |
+| `AI_MODEL` | No | Model override |
+
+## Vercel / Next.js Features Used
+
+- AI SDK `generateObject`
+- Vercel AI Gateway
+- Route Handlers
+- Zod
+
+## Next Steps
+
+<Cards>
+  <Card title="PDF Quiz Lab" href="/docs/experiments/pdf-quiz-lab">
+    MCQ quizzes from longer source documents.
+  </Card>
+  <Card title="AI Streaming Lab" href="/docs/experiments/ai-streaming-lab">
+    Structured output foundations.
+  </Card>
+</Cards>

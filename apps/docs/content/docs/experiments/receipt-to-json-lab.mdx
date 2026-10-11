@@ -1,0 +1,123 @@
+---
+title: Receipt to JSON Lab
+description: Turn receipt text or an uploaded image into structured expense JSON with line items - text-only works without vision.
+---
+
+<ExperimentEmbed slug="receipt-to-json-lab" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+Receipt to JSON Lab extracts `{ merchant, date, currency, total, lineItems[] }` from pasted receipt text or an uploaded image. Text-only requests use `generateObject` with a prompt; images add AI SDK image parts (vision) while still accepting an optional text hint. Download the result as JSON from the demo. Missing keys return `503` - nothing is fabricated.
+
+## Features
+
+- **Text or image** – paste works without vision; PNG/JPEG/WebP/GIF optional.
+- **Structured expense schema** – Zod-validated merchant, date, currency, total, line items.
+- **Download JSON** – client helper writes `expense.json`.
+- **Sample receipt** – prefilled ACME Coffee example.
+- **Honest `503`** when AI Gateway / OpenAI is not configured.
+
+## Server Reference
+
+### `POST /api/receipt`
+
+JSON `{ "text": "..." }` or `multipart/form-data` with `text` and optional image `file` (max 4MB).
+
+#### Success (`200`)
+
+```json
+{
+  "merchant": "ACME Coffee",
+  "date": "2026-03-15",
+  "currency": "USD",
+  "total": 12.1,
+  "lineItems": [
+    { "description": "Latte", "quantity": 1, "unitPrice": 4.5, "total": 4.5 }
+  ],
+  "provider": "ai-gateway",
+  "usedVision": false
+}
+```
+
+| Status | Cause |
+| --- | --- |
+| `503` | No AI provider |
+| `400` | Empty input, bad image type, or oversized file |
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### Provider gate + truncate
+
+`aiProviderAvailable()` then `truncateText` (`MAX_RECEIPT_TEXT = 8000`).
+
+</Step>
+<Step>
+
+### Text vs vision path
+
+Without an image, the handler uses `prompt`. With an image, it sends `messages` with `{ type: 'text' }` and `{ type: 'image', image, mediaType }` so text-only demos never require vision models.
+
+</Step>
+</Steps>
+
+## Use Cases
+
+- Prototype expense ingestion pipelines.
+- Compare text OCR paste vs multimodal extraction.
+- Teach typed `generateObject` schemas for line items.
+
+## Limitations
+
+- Do not upload sensitive financial documents to public demos.
+- Vision quality depends on image clarity and model support.
+- No auth or rate limiting.
+- Totals are model-inferred; verify before bookkeeping use.
+
+## Use in your project
+
+Copy `app/api/receipt/route.ts`, `lib/services.ts`, and `lib/ai-model.ts`. Keep the text-only branch so local demos work without a vision-capable model.
+
+## Deployment
+
+<ExperimentDeployButton slug="receipt-to-json-lab" />
+
+Prompts for `AI_GATEWAY_API_KEY`.
+
+## Local Development
+
+```bash
+cd apps/experiments/receipt-to-json-lab
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `AI_GATEWAY_API_KEY` | Yes (or `OPENAI_API_KEY`) | Preferred provider |
+| `OPENAI_API_KEY` | No | Fallback |
+| `AI_MODEL` | No | Model override |
+
+## Vercel / Next.js Features Used
+
+- AI SDK `generateObject` (text + image parts)
+- Vercel AI Gateway
+- Route Handlers
+- Zod
+
+## Next Steps
+
+<Cards>
+  <Card title="AI Streaming Lab" href="/docs/experiments/ai-streaming-lab">
+    Structured output and streaming basics.
+  </Card>
+  <Card title="Blob Storage Lab" href="/docs/experiments/blob-storage-lab">
+    Store receipt images with Vercel Blob.
+  </Card>
+</Cards>

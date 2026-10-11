@@ -1,0 +1,408 @@
+---
+title: Redis Cache Lab
+description: "Set/get with TTL and exercise distributed rate limits on Upstash Redis from the Marketplace."
+---
+
+<ExperimentEmbed slug="redis-cache-lab" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+The Redis Cache Lab exercises Upstash Redis, provisioned from the Vercel Marketplace, over its REST API. You can set a string value with a TTL, read it back with its remaining TTL, delete it, and hit a fixed-window rate limiter that uses atomic `INCR` and `EXPIRE`. Because state lives in Redis rather than in a function instance, every serverless invocation sees the same keys.
+
+## Features
+
+- **Set with TTL.** Store a string (up to 2000 characters) for 1 to 3600 seconds. The default is 60.
+- **Get with remaining TTL.** Read the value and the key's TTL in parallel.
+- **Delete.** Remove a key from the lab namespace.
+- **Distributed rate limiting.** `POST /api/rate-limit` implements a fixed window with `INCR` + `EXPIRE` and returns `429` once the limit is exceeded. The lab's **Hit rate limit** button uses bucket `redis-lab`, limit `5`, window `15` seconds.
+- **Namespaced keys.** Cache keys are stored as `experiments:redis-lab:<key>`, rate-limit buckets as `experiments:ratelimit:<bucket>`.
+- **Honest missing-config state.** Without credentials the routes return `503` with a `setup` hint and the UI shows a warning.
+
+## API Reference
+
+If Redis credentials are not configured, every method below returns **`503`** with `{ error: "Redis is not configured", setup }`.
+
+### GET /api/redis/cache
+
+<TypeTable
+  type={{
+    key: {
+      type: 'string (query)',
+      required: true,
+      description: '1–64 characters matching /^[a-zA-Z0-9:_-]+$/.',
+    },
+    'Response 200': {
+      type: '{ key, value, ttlSeconds, backend: "upstash-redis" }',
+      description:
+        'value is null when the key does not exist. ttlSeconds is the raw Redis TTL result (a negative number when the key is missing or has no expiry).',
+    },
+    'Response 400': {
+      type: '{ error }',
+      description: '"Valid key query param required".',
+    },
+    'Response 503': {
+      type: '{ error, setup }',
+      description:
+        'setup says to add Upstash Redis via the Marketplace so UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN are injected.',
+    },
+  }}
+/>
+
+### POST /api/redis/cache
+
+Sets a string value with an expiry (`SET ... EX`).
+
+<TypeTable
+  type={{
+    key: {
+      type: 'string',
+      required: true,
+      description: '1–64 characters matching /^[a-zA-Z0-9:_-]+$/.',
+    },
+    value: {
+      type: 'string',
+      required: true,
+      description: '1–2000 characters.',
+    },
+    ttlSeconds: {
+      type: 'integer',
+      default: '60',
+      description: 'Between 1 and 3600 (one hour).',
+    },
+    'Response 200': {
+      type: '{ ok: true, key, ttlSeconds, backend }',
+    },
+    'Response 400': {
+      type: '{ error }',
+      description:
+        '"Invalid JSON" for a non-JSON body, or the flattened Zod error object when validation fails.',
+    },
+    'Response 503': {
+      type: '{ error, setup }',
+      description: 'Redis is not configured.',
+    },
+  }}
+/>
+
+### DELETE /api/redis/cache
+
+<TypeTable
+  type={{
+    key: {
+      type: 'string (query)',
+      required: true,
+      description: 'Same rules as GET.',
+    },
+    'Response 200': { type: '{ ok: true, key }' },
+    'Response 400': {
+      type: '{ error }',
+      description: '"Valid key query param required".',
+    },
+    'Response 503': {
+      type: '{ error, setup }',
+      description: 'Redis is not configured.',
+    },
+  }}
+/>
+
+### POST /api/rate-limit
+
+Fixed-window counter used by the lab (and shared with the Rate Limiting Simulator).
+
+<TypeTable
+  type={{
+    bucket: {
+      type: 'string',
+      default: '"demo"',
+      description: '1–64 characters matching /^[a-zA-Z0-9:_-]+$/.',
+    },
+    limit: {
+      type: 'integer',
+      default: '5',
+      description: 'Between 1 and 100.',
+    },
+    windowSeconds: {
+      type: 'integer',
+      default: '10',
+      description: 'Between 1 and 3600.',
+    },
+    'Response 200': {
+      type: '{ allowed: true, count, limit, remaining, resetInSeconds, backend, algorithm: "fixed-window" }',
+    },
+    'Response 429': {
+      type: 'same shape, allowed: false',
+      description: 'Returned once count exceeds limit within the window.',
+    },
+    'Response 400': {
+      type: '{ error }',
+      description:
+        'Flattened Zod error. An unparseable body is not an error: it falls back to defaults.',
+    },
+    'Response 503': {
+      type: '{ error, setup, mode: "unavailable" }',
+      description: 'Redis is not configured.',
+    },
+  }}
+/>
+
+## Implementation Details
+
+<Files>
+  <Folder name="apps/experiments/redis-cache-lab" defaultOpen>
+    <File name="demo.tsx" />
+    <File name="logic.ts" />
+    <File name="logic.test.ts" />
+  </Folder>
+  <Folder name="app/api" defaultOpen>
+    <Folder name="redis/cache" defaultOpen>
+      <File name="route.ts" />
+    </Folder>
+    <Folder name="rate-limit" defaultOpen>
+      <File name="route.ts" />
+    </Folder>
+  </Folder>
+  <Folder name="lib/vercel">
+    <File name="redis.ts" />
+  </Folder>
+</Files>
+
+<Steps>
+<Step>
+
+### Create one cached client
+
+`lib/vercel/redis.ts` builds an Upstash client from REST credentials and caches it for the life of the module. It accepts the Marketplace variables and the legacy Vercel KV REST variables, and returns `null` when either the URL or token is missing.
+
+```ts
+const url =
+  process.env.UPSTASH_REDIS_REST_URL?.trim() ||
+  process.env.KV_REST_API_URL?.trim();
+const token =
+  process.env.UPSTASH_REDIS_REST_TOKEN?.trim() ||
+  process.env.KV_REST_API_TOKEN?.trim();
+
+if (url && token) {
+  cached = new Redis({ url, token });
+  return cached;
+}
+```
+
+</Step>
+<Step>
+
+### Fail with a setup message
+
+Every handler starts with the same guard so a missing store never looks like a server crash.
+
+```ts
+function unavailable() {
+  return NextResponse.json(
+    {
+      error: 'Redis is not configured',
+      setup:
+        'Add Upstash Redis via the Vercel Marketplace (one-click Deploy includes it) so UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN are injected.',
+    },
+    { status: 503 },
+  );
+}
+```
+
+</Step>
+<Step>
+
+### Validate, then namespace and set with TTL
+
+```ts
+const KEY_PREFIX = 'experiments:redis-lab:';
+const MAX_TTL = 60 * 60;
+
+const setSchema = z.object({
+  key: z.string().min(1).max(64).regex(/^[a-zA-Z0-9:_-]+$/),
+  value: z.string().min(1).max(2000),
+  ttlSeconds: z.number().int().min(1).max(MAX_TTL).default(60),
+});
+
+const fullKey = `${KEY_PREFIX}${parsed.data.key}`;
+await redis.set(fullKey, parsed.data.value, { ex: parsed.data.ttlSeconds });
+```
+
+</Step>
+<Step>
+
+### Read value and TTL together
+
+```ts
+const [value, ttl] = await Promise.all([redis.get<string>(fullKey), redis.ttl(fullKey)]);
+```
+
+</Step>
+<Step>
+
+### Count requests per window
+
+The rate limiter increments a bucket key and sets the expiry only when the counter is created (`count === 1`), which defines a fixed window.
+
+```ts
+const key = `experiments:ratelimit:${bucket}`;
+const count = await redis.incr(key);
+if (count === 1) {
+  await redis.expire(key, windowSeconds);
+}
+const ttl = await redis.ttl(key);
+const allowed = count <= limit;
+```
+
+The response status is `200` when allowed and `429` otherwise.
+
+</Step>
+<Step>
+
+### Clamp on the client too
+
+`apps/experiments/redis-cache-lab/logic.ts` exports `clampTtl()`, which the demo uses to keep the UI inside the server's 1–3600 range.
+
+```ts
+export function clampTtl(seconds: number): number {
+  return Math.min(3600, Math.max(1, Math.floor(seconds)));
+}
+```
+
+</Step>
+</Steps>
+
+## Use Cases
+
+- **Response and computation caching** with automatic expiry.
+- **Distributed rate limiting** that works across serverless instances, unlike in-memory counters.
+- **Ephemeral session or one-time state** such as short-lived tokens and webhook captures.
+- **Shared counters and idempotency keys** across concurrent invocations.
+
+## Limitations
+
+- **Fixed-window only.** The limiter can allow a burst at a window boundary (up to roughly twice the limit across two adjacent windows). It is not a sliding window or token bucket.
+- **Non-atomic expiry.** `INCR` and `EXPIRE` are separate calls. If the function stops between them the counter can be left without an expiry. The demo accepts this; use a Lua script or a library such as `@upstash/ratelimit` for stricter guarantees.
+- **Strings only.** The cache route stores and returns strings, with a 2000-character cap and a 1-hour maximum TTL.
+- **No authentication.** Anyone who can reach the deployment can set, read, and delete keys under `experiments:redis-lab:`.
+- **Shared rate-limit buckets.** `/api/rate-limit` buckets are global per `bucket` name, not per user or IP.
+- **Not persistent storage.** Treat Redis here as a cache; values expire by design.
+
+## Use in your project
+
+Cache an expensive result with a TTL. Install with `pnpm add @upstash/redis` and provide the REST URL and token.
+
+```ts
+// lib/cache.ts
+import { Redis } from '@upstash/redis';
+
+const redis = Redis.fromEnv();
+
+export async function cached<T>(key: string, ttlSeconds: number, load: () => Promise<T>) {
+  const hit = await redis.get<T>(key);
+  if (hit !== null) return hit;
+
+  const value = await load();
+  await redis.set(key, value, { ex: ttlSeconds });
+  return value;
+}
+```
+
+`Redis.fromEnv()` reads `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`. This repository builds the client explicitly in `lib/vercel/redis.ts` so it can also fall back to `KV_REST_API_URL` and `KV_REST_API_TOKEN`.
+
+## Deployment
+
+<ExperimentDeployButton slug="redis-cache-lab" />
+
+
+Use the one-click Deploy button. It clones the repository and provisions Upstash Redis from the Vercel Marketplace, which injects the REST credentials.
+
+<Cards>
+  <Card
+    title="Deploy with Upstash Redis"
+    href="https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fvercel-experiments%2Fvercel-experiments.com&project-name=vercel-experiments&repository-name=vercel-experiments&stores=%5B%7B%22type%22%3A%22integration%22%2C%22integrationSlug%22%3A%22upstash%22%2C%22productSlug%22%3A%22redis%22%2C%22protocol%22%3A%22storage%22%7D%5D"
+  >
+    Clones the repo and adds the Upstash Redis integration (`protocol: "storage"`).
+  </Card>
+</Cards>
+
+## Local Development
+
+```bash
+pnpm install
+pnpm dev
+```
+
+Pull credentials from a linked project, or set them yourself:
+
+```bash
+vercel env pull .env.local
+# or
+echo 'UPSTASH_REDIS_REST_URL=https://<your-db>.upstash.io' >> .env.local
+echo 'UPSTASH_REDIS_REST_TOKEN=<token>' >> .env.local
+```
+
+Try the API (default port `3000`):
+
+```bash
+# Set a value for 60 seconds
+curl -X POST http://localhost:3000/api/redis/cache \
+  -H "content-type: application/json" \
+  -d '{"key":"greeting","value":"hello from upstash","ttlSeconds":60}'
+
+# Read it back (includes ttlSeconds)
+curl "http://localhost:3000/api/redis/cache?key=greeting"
+
+# Delete it
+curl -X DELETE "http://localhost:3000/api/redis/cache?key=greeting"
+
+# Hit the rate limiter (5 requests per 15 seconds, then 429)
+for i in 1 2 3 4 5 6; do
+  curl -s -o /dev/null -w "%{http_code}\n" -X POST http://localhost:3000/api/rate-limit \
+    -H "content-type: application/json" \
+    -d '{"bucket":"redis-lab","limit":5,"windowSeconds":15}'
+done
+```
+
+Expected response when Redis is missing:
+
+```json
+{
+  "error": "Redis is not configured",
+  "setup": "Add Upstash Redis via the Vercel Marketplace (one-click Deploy includes it) so UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN are injected."
+}
+```
+
+## Configuration
+
+From `.env.example`:
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `UPSTASH_REDIS_REST_URL` | Yes, for live demos | Upstash Redis REST endpoint. |
+| `UPSTASH_REDIS_REST_TOKEN` | Yes, for live demos | Upstash Redis REST token. |
+| `KV_REST_API_URL` | Legacy alternative | Accepted in place of `UPSTASH_REDIS_REST_URL`. |
+| `KV_REST_API_TOKEN` | Legacy alternative | Accepted in place of `UPSTASH_REDIS_REST_TOKEN`. |
+
+Both a URL and a token are required; if either is missing the client is `null` and routes return `503`.
+
+## Vercel / Next.js Features Used
+
+- **Vercel Marketplace** storage integration (Upstash Redis) provisioned through the Deploy Button `stores` parameter (`REDIS_STORE` in `lib/vercel/deploy.ts`).
+- **Upstash Redis REST client** (`@upstash/redis`): `set` with `ex`, `get`, `ttl`, `del`, `incr`, and `expire`.
+- **Route Handlers** with `GET`, `POST`, and `DELETE` exports.
+- **Zod** for request validation.
+
+## Next Steps
+
+<Cards>
+  <Card title="Rate Limiting Simulator" href="/docs/experiments/rate-limiting-simulator">
+    Compare rate-limit algorithms locally, then hit the live fixed-window limiter.
+  </Card>
+  <Card title="Webhook Playground" href="/docs/experiments/webhook-playground">
+    Capture webhook requests with durable sessions backed by Redis.
+  </Card>
+  <Card title="Cron Jobs Lab" href="/docs/experiments/cron-jobs-lab">
+    Persist scheduled heartbeat runs to Redis.
+  </Card>
+</Cards>

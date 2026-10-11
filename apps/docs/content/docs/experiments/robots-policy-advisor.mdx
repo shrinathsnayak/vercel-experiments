@@ -1,0 +1,107 @@
+---
+title: Robots Policy Advisor
+description: Paste robots.txt or fetch from a URL - allow/deny explanation plus concrete crawl-policy suggestions.
+---
+
+<ExperimentEmbed slug="robots-policy-advisor" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+Robots Policy Advisor accepts pasted `robots.txt` or an optional fetch URL (auto-appends `/robots.txt` for origins), parses allow/deny locally, and explains the policy with suggestions via `generateObject`.
+
+## Features
+
+- **Paste or URL** – fetch optional when paste empty
+- **Local parse hints** – Allow / Disallow / Sitemap
+- **AI advice** – allows, denies, suggestions, summary
+
+## Server Reference
+
+### `POST /api/advise`
+
+```json
+{ "robotsText": "User-agent: *\nDisallow: /api/", "url": "https://example.com" }
+```
+
+| Status | Cause |
+| --- | --- |
+| `503` | No AI provider |
+| `400` | Validation / upstream / empty input |
+
+
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### Pure helpers in `logic.ts`
+
+Caps, parsers, and clamps live in the experiment folder and are covered by `logic.test.ts`.
+
+</Step>
+<Step>
+
+### Route Handler
+
+`POST /api/advise` validates input, applies fetch/parse limits where relevant, then returns JSON from `generateObject`.
+
+</Step>
+</Steps>
+
+## Use Cases
+
+- Learn composition patterns for this lab’s stack.
+- Prototype before wiring production auth and quotas.
+- Deploy the standalone app as a reference implementation.
+
+## Limitations
+
+- Demo-scale caps on input size and output counts.
+- No auth / rate limits on public deploys.
+- Model quality depends on input clarity.
+- Treat outputs as drafts, not production truth.
+
+## Use in your project
+
+Copy the Route Handler and `logic.ts` helpers from `apps/experiments/robots-policy-advisor/`. Wire your own persistence and auth as needed.
+
+## Deployment
+
+<ExperimentDeployButton slug="robots-policy-advisor" />
+
+## Local Development
+
+```bash
+cd apps/experiments/robots-policy-advisor
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `AI_GATEWAY_API_KEY` | Yes (or `OPENAI_API_KEY`) | Preferred provider |
+| `OPENAI_API_KEY` | No | Fallback |
+| `AI_MODEL` | No | Model override |
+
+## Vercel / Next.js Features Used
+
+- Route Handlers
+- Zod
+- AI SDK `generateObject`
+
+
+## Next Steps
+
+<Cards>
+  <Card title="SEO Meta Auditor" href="/docs/experiments/seo-meta-auditor">
+    Related experiment.
+  </Card>
+  <Card title="Sitemap Health Lab" href="/docs/experiments/sitemap-health-lab">
+    Related experiment.
+  </Card>
+</Cards>

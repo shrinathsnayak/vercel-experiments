@@ -1,0 +1,90 @@
+---
+title: Whiteboard to Tasks
+description: Upload a whiteboard photo - vision generateObject task list JSON. Honest 503 without AI.
+---
+
+<ExperimentEmbed slug="whiteboard-to-tasks" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+Whiteboard to Tasks is a Wave 3 Batch H composition lab. Pure helpers live in `logic.ts`; missing providers or stores degrade honestly (never fabricate AI output).
+
+## Features
+
+- Vision - tasks JSON
+- Owner/priority hints
+- Honest 503
+
+## Server Reference
+
+### `POST /api/tasks`
+
+```json
+multipart/form-data: file=<image>
+```
+
+| Status | Cause |
+| --- | --- |
+| `200` | Success |
+| `400` | Missing image |
+| `503` | No AI provider |
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### Validate
+
+Inputs are length-capped in `logic.ts`; APIs return `400` for missing fields.
+
+</Step>
+<Step>
+
+### Run
+
+Route Handlers compose AI SDK, Redis/Neon, or `ImageResponse` as documented. Fallbacks include honest notes.
+
+</Step>
+</Steps>
+
+## Limitations
+
+- Handwriting OCR varies.
+- 4MB cap.
+- Not a project manager.
+
+## Use in your project
+
+Copy the Route Handler(s) and `logic.ts` from `apps/experiments/whiteboard-to-tasks/`.
+
+## Deployment
+
+<ExperimentDeployButton slug="whiteboard-to-tasks" />
+
+## Local Development
+
+```bash
+cd apps/experiments/whiteboard-to-tasks
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `AI_GATEWAY_API_KEY` | Yes (or OpenAI) | Preferred AI provider |
+
+## Next Steps
+
+<Cards>
+  <Card title="Screenshot To Ticket" href="/docs/experiments/screenshot-to-ticket">
+    Related experiment.
+  </Card>
+  <Card title="Notes To Actions Lab" href="/docs/experiments/notes-to-actions-lab">
+    Related experiment.
+  </Card>
+</Cards>

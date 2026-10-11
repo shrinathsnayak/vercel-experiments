@@ -1,0 +1,28 @@
+---
+title: Getting started
+description: Install dependencies and run the site locally.
+---
+
+## Prerequisites
+
+- Node.js 22+
+- pnpm 10+
+
+## Quick start
+
+```bash
+pnpm install
+pnpm dev
+```
+
+Open [http://localhost:3000](http://localhost:3000).
+
+## Explore the product
+
+1. Browse `/docs/experiments/*` for guides and deploy / run-locally panels
+2. Open an experiment and use **Deploy on Vercel**, or run it locally with `cd apps/experiments/<slug> && pnpm install && pnpm dev`
+3. Follow `/docs/adding-an-experiment` to contribute
+
+## Optional environment
+
+The hub docs site does not require experiment secrets. When you deploy or run an individual experiment, copy that experiment's `.env.example` as needed.

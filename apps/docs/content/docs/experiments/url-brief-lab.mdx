@@ -1,0 +1,132 @@
+---
+title: URL Brief Lab
+description: Fetch a URL with size and timeout caps, stream a summary, and preview an ImageResponse Open Graph card.
+---
+
+<ExperimentEmbed slug="url-brief-lab" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+URL Brief Lab fetches a public `http(s)` URL on the server (8s timeout, ~500KB HTML cap), extracts title / meta description / rough text, streams a summary with `streamText`, and exposes an OG preview path consumed by `GET /api/og` (`ImageResponse`). Response headers carry `x-page-title` and `x-og-preview` for the client card.
+
+## Features
+
+- **Capped server fetch** – timeout + byte limit; only `http:` / `https:`.
+- **HTML heuristics** – `extractTitle`, `extractMetaDescription`, `stripHtmlToText` in `logic.ts`.
+- **streamText summary** – token stream to the browser with cancel support.
+- **ImageResponse OG** – `/api/og?title=&description=` preview image.
+- **Honest `503`** without AI keys (fetch still would not run the model).
+
+## Server Reference
+
+### `POST /api/brief`
+
+```json
+{ "url": "https://example.com" }
+```
+
+Returns a **text stream** (`toTextStreamResponse`) with headers:
+
+| Header | Meaning |
+| --- | --- |
+| `x-ai-provider` | `ai-gateway` or `openai` |
+| `x-page-title` | URI-encoded page title |
+| `x-og-preview` | Path like `/api/og?title=...&description=...` |
+
+### `GET /api/og`
+
+Query: `title`, `description`. Returns a 1200×630 PNG via `ImageResponse`.
+
+| Status | Cause |
+| --- | --- |
+| `503` | No AI provider (brief only) |
+| `400` | Bad URL, upstream error, timeout, non-http(s) |
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### Fetch with AbortController
+
+`FETCH_TIMEOUT_MS = 8000`, `MAX_HTML_BYTES = 500_000`.
+
+</Step>
+<Step>
+
+### Extract + stream
+
+Build context from title/meta/text, then `streamText`. Attach OG path via `buildOgPreviewPath`.
+
+</Step>
+<Step>
+
+### OG route
+
+`app/api/og/route.tsx` mirrors OG Image Studio’s `ImageResponse` approach with a simpler dark card.
+
+</Step>
+</Steps>
+
+## Use Cases
+
+- Link previews with a streamed executive summary.
+- Teaching safe server-side fetch limits.
+- Pairing AI summaries with social card images.
+
+## Limitations
+
+- No SSRF allowlist beyond protocol check - do not expose to untrusted users without hardening.
+- HTML extraction is regex-based, not a full DOM parser.
+- JS-rendered SPAs may yield little text.
+- No auth / rate limits.
+
+## Use in your project
+
+Reuse `logic.ts` extractors and the brief + og routes. Add domain allowlists before production.
+
+## Deployment
+
+<ExperimentDeployButton slug="url-brief-lab" />
+
+## Local Development
+
+```bash
+cd apps/experiments/url-brief-lab
+pnpm install
+pnpm dev
+```
+
+```bash
+curl -N -X POST http://localhost:3010/api/brief \
+  -H "content-type: application/json" \
+  -d '{"url":"https://vercel.com/docs"}'
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `AI_GATEWAY_API_KEY` | Yes (or `OPENAI_API_KEY`) | Preferred provider |
+| `OPENAI_API_KEY` | No | Fallback |
+| `AI_MODEL` | No | Model override |
+
+## Vercel / Next.js Features Used
+
+- AI SDK `streamText`
+- `next/og` `ImageResponse`
+- Route Handlers
+- Zod
+
+## Next Steps
+
+<Cards>
+  <Card title="OG Image Studio" href="/docs/experiments/og-image-studio">
+    Full ImageResponse layout playground.
+  </Card>
+  <Card title="AI Streaming Lab" href="/docs/experiments/ai-streaming-lab">
+    Token streaming patterns.
+  </Card>
+</Cards>

@@ -1,0 +1,49 @@
+---
+title: Adding an experiment
+description: Minimal workflow for registering a new experiment.
+---
+
+## Checklist
+
+1. Scaffold a standalone Next.js app under `apps/experiments/<slug>/` (see [EXPERIMENTS.md](https://github.com/vercel-experiments/vercel-experiments.com/blob/main/EXPERIMENTS.md)) with `demo.tsx`, `app/`, and local `ui/`.
+2. Put pure logic in `apps/experiments/<slug>/logic.ts` and add tests when useful.
+3. Add validated metadata in `apps/docs/lib/experiments/data.ts`, including `deploymentUrl: experimentDeployUrl('<slug>')`.
+4. Write docs under `apps/docs/content/docs/experiments/<slug>.mdx` with the same `title` and `description` as the registry (docs SEO, OG images, and JSON-LD reuse those fields). Follow the [documentation template](#documentation-template) below.
+5. Add the docs path to `apps/docs/content/docs/meta.json` under the right category.
+6. Add `app/api/` **only** when the lesson needs HTTP, secrets, ImageResponse, or platform ingress. Client-only labs should stay page + `logic.ts`. Keep handlers under the experiment app - the docs hub does not re-export experiment routes.
+7. Link related experiments carefully - unpublished slugs are ignored.
+8. Run lint, typecheck, unit tests, hub build, and `pnpm build` inside the experiment folder.
+
+See also [EXPERIMENTS.md](https://github.com/vercel-experiments/vercel-experiments.com/blob/main/EXPERIMENTS.md) in the repository root.
+
+## Documentation template
+
+Each experiment page should match the depth of the [Cloudflare AI Website Summary docs](https://cloudflare-experiments.com/docs/experiments/ai-website-summary): real endpoints, real code excerpts, and honest limits. Read the implementation first and never document APIs, limits, or behavior you have not verified. The Phase 4 platform labs ([Blob Storage Lab](/docs/experiments/blob-storage-lab), [Redis Cache Lab](/docs/experiments/redis-cache-lab)) are good references.
+
+Start the file with front matter (`title` and `description` copied exactly from `apps/docs/lib/experiments/data.ts`), then `<ExperimentEmbed slug="..." />`, a `<Callout type="warning">` that says the demo is experimental, and a short intro paragraph. `<ExperimentEmbed>` shows a **deploy / run locally** panel - the hub does not embed live demos. Then use these sections in order:
+
+| Section | What to include |
+| --- | --- |
+| Features | Bullets describing what the lab does and its guardrails |
+| UI Reference (default) | Controls, local helpers, and in-browser behavior. Prefer this unless HTTP is the lesson. |
+| API Reference (when needed) | Only for real HTTP teaching surfaces: `TypeTable` per endpoint (method, path, request, response, `503` setup codes). |
+| Server Reference (AI / secrets) | When handlers exist mainly to protect keys or call AI Gateway - document the handler briefly without framing the lab as a REST product. Form-style demos may use Server Actions instead of Route Handlers. |
+| Implementation Details | `<Steps>` / `<Step>` with real excerpts from the source, plus `<Files>` for layout |
+| Use Cases | Practical situations where the pattern applies |
+| Limitations | Size limits, auth gaps, and behavior that surprised you |
+| Use in your project | A pasteable snippet |
+| Deployment | `<ExperimentDeployButton slug="..." />` plus notes from `experimentDeployUrl` in `data.ts` |
+| Local Development | `cd apps/experiments/<slug> && pnpm install && pnpm dev`, plus `curl` examples |
+| Configuration | Variables from the experiment's `.env.example` |
+| Vercel / Next.js Features Used | Platform and framework features the code relies on |
+| Next Steps | `<Cards>` linking related experiments |
+
+Available MDX components: `ExperimentEmbed`, `ExperimentDeployButton`, `Callout`, `Cards`, `Card`, `Steps`, `Step`, `TypeTable`, `Files`, `File`, `Folder`.
+
+Prefer short code excerpts in Implementation Details; link to the experiment folder on GitHub for full source.
+
+## Registry fields
+
+Required metadata includes `slug`, `title`, `description`, `category`, `tags`, `technologies`, `difficulty`, `estimatedMinutes`, `featured`, `published`, `lastUpdated`, `documentationPath`, and `phase`.
+
+Optional `surface`: `ui` | `route-handlers` | `mixed`. When omitted, the registry derives it (`ui` for client-only labs, `mixed` for AI and dual UI+HTTP labs, otherwise `route-handlers`).

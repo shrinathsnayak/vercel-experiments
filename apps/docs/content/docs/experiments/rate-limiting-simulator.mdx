@@ -1,0 +1,419 @@
+---
+title: Rate Limiting Simulator
+description: Compare rate-limit algorithms locally, then hit a live Upstash Redis fixed-window limiter.
+---
+
+<ExperimentEmbed slug="rate-limiting-simulator" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+The Rate Limiting Simulator has two halves. The **simulator** runs four rate-limit algorithms (fixed window, sliding window, token bucket, and leaky bucket) entirely in the browser against a synthetic burst of requests and shows which requests would be accepted or rejected. The **live limiter** is a real Route Handler, `POST /api/rate-limit`, that implements a fixed-window counter on Upstash Redis using `INCR` and `EXPIRE`.
+
+It is written in TypeScript, tested with Vitest, and uses Upstash Redis from the Vercel Marketplace for the live part. The problem it teaches is how algorithm choice changes who gets throttled under bursty traffic, and why a limiter on serverless needs shared state.
+
+## Features
+
+- **Four algorithms** – `fixed-window`, `sliding-window`, `token-bucket`, `leaky-bucket`, all behind a common `RateLimiter` interface.
+- **Parameter controls** – limit (1–100), window in ms (100–60000), burst (1–100), request count (1–50), and request interval in ms (10–2000).
+- **Per-request timeline** – each simulated request is shown as accepted (green) or rejected (red) with its virtual timestamp.
+- **Algorithm comparison table** – runs all four algorithms with the same inputs and shows accepted versus rejected counts.
+- **Live Redis limiter** – one click calls `/api/rate-limit` and prints the JSON result; shows setup guidance when Redis is not configured.
+- **Deterministic logic** – limiters take `now` as an argument instead of reading the clock, so tests and the UI are repeatable.
+
+## API Reference
+
+### `POST /api/rate-limit`
+
+Increment a shared counter in Redis and report whether the request is within the limit.
+
+<TypeTable
+  type={{
+    bucket: {
+      description: "Counter name. 1–64 characters matching `[a-zA-Z0-9:_-]`. The Redis key is `experiments:ratelimit:{bucket}`.",
+      type: "string",
+      default: "'demo'",
+    },
+    limit: {
+      description: "Maximum requests allowed per window. Integer 1–100.",
+      type: "number",
+      default: "5",
+    },
+    windowSeconds: {
+      description: "Length of the window in seconds. Integer 1–3600. Applied as the key TTL when the counter is created.",
+      type: "number",
+      default: "10",
+    },
+  }}
+/>
+
+All fields are optional. A body that is not valid JSON is treated as `{}`, so the defaults apply. The demo UI sends `bucket: "rate-limit-lab"`, your configured `limit`, and `windowSeconds = max(1, round(windowMs / 1000))`.
+
+**Allowed** – `200`:
+
+```json
+{
+  "allowed": true,
+  "count": 3,
+  "limit": 5,
+  "remaining": 2,
+  "resetInSeconds": 7,
+  "backend": "upstash-redis",
+  "algorithm": "fixed-window"
+}
+```
+
+**Limited** – `429` with the same shape and `"allowed": false`, `"remaining": 0`:
+
+```json
+{
+  "allowed": false,
+  "count": 6,
+  "limit": 5,
+  "remaining": 0,
+  "resetInSeconds": 4,
+  "backend": "upstash-redis",
+  "algorithm": "fixed-window"
+}
+```
+
+**Errors**
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `503` | `{ "error": "Redis is not configured", "setup": "Provision Upstash Redis (Marketplace / Deploy button) for distributed rate limiting.", "mode": "unavailable" }` | No Redis credentials |
+| `400` | `{ "error": { "formErrors": [], "fieldErrors": { "limit": ["..."] } } }` | Zod validation failed (for example `limit: 500` or a bucket with spaces) |
+
+The `503` check happens before validation, so with no Redis you receive `503` for any body.
+
+## UI Reference
+
+The simulator's building blocks are exported from `apps/experiments/rate-limiting-simulator/logic.ts`.
+
+<TypeTable
+  type={{
+    limit: {
+      description: "Requests allowed per `windowMs` (also the refill/leak rate numerator).",
+      type: "number",
+      required: true,
+    },
+    windowMs: {
+      description: "Window length in milliseconds.",
+      type: "number",
+      required: true,
+    },
+    burst: {
+      description: "Bucket capacity for `token-bucket` and `leaky-bucket`. Defaults to `limit`. Ignored by the window algorithms.",
+      type: "number",
+    },
+  }}
+/>
+
+Every limiter implements:
+
+```ts
+export type RateLimiter = {
+  check: (now: number, key?: string) => RateLimitResult;
+  reset: () => void;
+};
+
+export type RateLimitResult = {
+  allowed: boolean;
+  remaining: number;
+  retryAfterMs?: number;
+};
+```
+
+With the defaults (limit 5, window 1000 ms, burst 5, 12 requests, 100 ms apart) the four algorithms give:
+
+| Algorithm | Accepted | Rejected | Pattern (A = accepted, R = rejected) |
+| --- | --- | --- | --- |
+| `fixed-window` | 7 | 5 | `AAAAARRRRRAA` |
+| `sliding-window` | 6 | 6 | `AAAAARRRRRRA` |
+| `token-bucket` | 10 | 2 | `AAAAAAAAARAR` |
+| `leaky-bucket` | 11 | 1 | `AAAAAAAAAARA` |
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### Fixed window (simulator)
+
+A counter resets when `windowMs` has elapsed since the window started.
+
+```ts
+export function createFixedWindowLimiter(config: RateLimitConfig): RateLimiter {
+  let windowStart = 0;
+  let count = 0;
+  return {
+    check(now: number) {
+      if (now - windowStart >= config.windowMs) {
+        windowStart = now;
+        count = 0;
+      }
+      if (count >= config.limit) {
+        return {
+          allowed: false,
+          remaining: 0,
+          retryAfterMs: config.windowMs - (now - windowStart),
+        };
+      }
+      count += 1;
+      return { allowed: true, remaining: config.limit - count };
+    },
+    reset() { windowStart = 0; count = 0; },
+  };
+}
+```
+
+</Step>
+<Step>
+
+### Sliding window (simulator)
+
+Keeps the timestamps of accepted requests and drops those older than the window.
+
+```ts
+check(now: number) {
+  const windowStart = now - config.windowMs;
+  while (timestamps.length > 0 && timestamps[0]! < windowStart) {
+    timestamps.shift();
+  }
+  if (timestamps.length >= config.limit) {
+    const retryAfterMs = timestamps[0]! + config.windowMs - now;
+    return { allowed: false, remaining: 0, retryAfterMs: Math.max(0, retryAfterMs) };
+  }
+  timestamps.push(now);
+  return { allowed: true, remaining: config.limit - timestamps.length };
+}
+```
+
+</Step>
+<Step>
+
+### Token bucket and leaky bucket (simulator)
+
+The token bucket starts full (`burst` tokens) and refills at `limit / windowMs` tokens per millisecond. The leaky bucket tracks a "volume" that drains at the same rate and rejects when the volume reaches `burst`.
+
+```ts
+// token bucket
+const refillRate = config.limit / config.windowMs;
+tokens = Math.min(burst, tokens + elapsed * refillRate);
+if (tokens < 1) {
+  const retryAfterMs = Math.ceil((1 - tokens) / refillRate);
+  return { allowed: false, remaining: 0, retryAfterMs };
+}
+tokens -= 1;
+```
+
+</Step>
+<Step>
+
+### Drive the simulation
+
+`simulateRequests` calls `limiter.check(at)` with synthetic timestamps, so no real time passes.
+
+```ts
+export function simulateRequests(limiter, count, startMs, intervalMs) {
+  const results = [];
+  for (let i = 0; i < count; i += 1) {
+    const at = startMs + i * intervalMs;
+    results.push({ index: i + 1, at, result: limiter.check(at) });
+  }
+  return results;
+}
+```
+
+</Step>
+<Step>
+
+### Live fixed-window limiter (Redis)
+
+The route increments a key, sets an expiry when the key is first created, reads the remaining TTL, and answers `429` when the count exceeds the limit.
+
+```ts
+const key = `experiments:ratelimit:${bucket}`;
+const count = await redis.incr(key);
+if (count === 1) {
+  await redis.expire(key, windowSeconds);
+}
+const ttl = await redis.ttl(key);
+const allowed = count <= limit;
+
+return NextResponse.json(
+  {
+    allowed,
+    count,
+    limit,
+    remaining: Math.max(0, limit - count),
+    resetInSeconds: ttl > 0 ? ttl : windowSeconds,
+    backend: 'upstash-redis',
+    algorithm: 'fixed-window',
+  },
+  { status: allowed ? 200 : 429 },
+);
+```
+
+</Step>
+</Steps>
+
+## Use Cases
+
+- Decide between a fixed window and a token bucket for an API by seeing how each treats a burst.
+- Teach why the sliding window avoids the double-burst at fixed-window boundaries.
+- Try the live limiter from several browser tabs to see a counter shared across serverless instances.
+- Write unit tests for rate-limit logic by passing explicit timestamps, as the experiment's Vitest suite does.
+
+## Limitations
+
+Security notes for this experiment:
+
+- Simulator mode is in-memory and educational.
+- Live mode uses Redis INCR/EXPIRE - still demo-scoped buckets only.
+
+Additional limits that come from the code:
+
+- **Live mode is fixed-window only.** The algorithm selector, burst, request count, and interval affect the local simulation but not the Redis route. Only `limit` and the window (rounded to whole seconds, minimum 1) are sent.
+- **No identity.** The live route rate-limits a named bucket, not a client. Everyone calling the demo with the same bucket shares one counter; there is no per-IP or per-user keying.
+- **`INCR` and `EXPIRE` are separate calls.** If a request fails between them, the key can exist without a TTL and stay over limit until it is deleted. Production limiters usually use a Lua script, a pipeline/transaction, or a library such as `@upstash/ratelimit`.
+- **Bounded input.** `limit` is capped at 100, `windowSeconds` at 3600, and `bucket` at 64 characters of `[a-zA-Z0-9:_-]`. Because the key is created with the first request's window, later requests with a different `windowSeconds` do not change the existing TTL.
+- **Simulation uses a virtual clock** starting at 0 ms; real network jitter, clock skew, and concurrency are not modelled.
+- **`key` is unused.** `RateLimiter.check` accepts a `key` argument, but none of the in-memory limiters partition by it.
+- **No reset endpoint.** To clear a bucket early, wait for the TTL or delete the key in Redis.
+
+## Use in your project
+
+A pure, testable fixed-window limiter plus a Redis-backed route that mirrors the experiment:
+
+```ts
+// lib/fixed-window.ts
+export function createFixedWindowLimiter(limit: number, windowMs: number) {
+  let windowStart = 0;
+  let count = 0;
+  return (now: number) => {
+    if (now - windowStart >= windowMs) {
+      windowStart = now;
+      count = 0;
+    }
+    if (count >= limit) {
+      return { allowed: false, remaining: 0, retryAfterMs: windowMs - (now - windowStart) };
+    }
+    count += 1;
+    return { allowed: true, remaining: limit - count };
+  };
+}
+```
+
+```ts
+// app/api/limited/route.ts
+import { Redis } from '@upstash/redis';
+import { NextRequest, NextResponse } from 'next/server';
+
+const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL!,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+});
+
+const LIMIT = 5;
+const WINDOW_SECONDS = 10;
+
+export async function GET(request: NextRequest) {
+  const id = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'anonymous';
+  const key = `ratelimit:${id}`;
+
+  const count = await redis.incr(key);
+  if (count === 1) await redis.expire(key, WINDOW_SECONDS);
+
+  if (count > LIMIT) {
+    const ttl = await redis.ttl(key);
+    return NextResponse.json(
+      { error: 'rate_limited' },
+      { status: 429, headers: { 'retry-after': String(Math.max(1, ttl)) } },
+    );
+  }
+  return NextResponse.json({ ok: true, remaining: LIMIT - count });
+}
+```
+
+For production, prefer an atomic implementation (for example `@upstash/ratelimit`) so the counter and its expiry cannot get out of sync.
+
+## Deployment
+
+<ExperimentDeployButton slug="rate-limiting-simulator" />
+
+
+The deploy button provisions an **Upstash Redis** store from the Vercel Marketplace and injects `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`. Without it the simulator still works, and the live button reports that Redis is not configured. Use the Deploy button on this experiment page. Required variables are listed in this experiment's Configuration section.
+
+## Local Development
+
+```bash
+pnpm install
+pnpm dev
+```
+
+Run the algorithm tests:
+
+```bash
+pnpm vitest run ../experiments/rate-limiting-simulator
+```
+
+Exercise the live limiter (requires Redis credentials in `.env.local`):
+
+```bash
+# Hit the limiter repeatedly; the 6th call within 10 seconds returns 429
+for i in 1 2 3 4 5 6; do
+  curl -s -o /dev/null -w "%{http_code}\n" -X POST http://localhost:3000/api/rate-limit \
+    -H "content-type: application/json" \
+    -d '{"bucket":"curl-test","limit":5,"windowSeconds":10}'
+done
+
+# Full response body
+curl -s -X POST http://localhost:3000/api/rate-limit \
+  -H "content-type: application/json" \
+  -d '{"bucket":"curl-test","limit":5,"windowSeconds":10}'
+
+# Validation error
+curl -s -X POST http://localhost:3000/api/rate-limit \
+  -H "content-type: application/json" \
+  -d '{"limit":1000}'
+```
+
+Without Redis credentials every call returns `503` with `"mode": "unavailable"`.
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `UPSTASH_REDIS_REST_URL` | Only for live mode | Upstash Redis REST endpoint. |
+| `UPSTASH_REDIS_REST_TOKEN` | Only for live mode | Upstash Redis REST token. |
+| `KV_REST_API_URL` | No | Legacy Vercel KV REST URL, accepted as a fallback by `getRedis()`. |
+| `KV_REST_API_TOKEN` | No | Legacy Vercel KV REST token, accepted as a fallback. |
+
+Both a URL and a token must be present. The experiment lists no required environment variables because the simulator works without them.
+
+## Vercel / Next.js Features Used
+
+- [Route Handlers](https://nextjs.org/docs/app/api-reference/file-conventions/route) for `POST /api/rate-limit`.
+- [Vercel Marketplace](https://vercel.com/marketplace) with Upstash Redis for shared state.
+- [Upstash Redis REST client](https://upstash.com/docs/redis/sdks/ts/overview) (`@upstash/redis`) using `INCR`, `EXPIRE`, and `TTL`.
+- Zod for request validation.
+- Vitest for deterministic algorithm tests.
+
+## Next Steps
+
+<Cards>
+  <Card title="Redis Cache Lab" href="/docs/experiments/redis-cache-lab">
+    TTL cache entries and a shared limiter on Upstash Redis.
+  </Card>
+  <Card title="Webhook Playground" href="/docs/experiments/webhook-playground">
+    Another bounded public endpoint with its own per-session rate limit.
+  </Card>
+  <Card title="@upstash/ratelimit" href="https://upstash.com/docs/redis/sdks/ratelimit-ts/overview">
+    A production-ready rate-limiting library for Redis.
+  </Card>
+  <Card title="Vercel WAF rate limiting" href="https://vercel.com/docs/vercel-firewall/vercel-waf/rate-limiting">
+    Platform-level limits before requests reach your code.
+  </Card>
+</Cards>

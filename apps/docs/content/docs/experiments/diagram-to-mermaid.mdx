@@ -1,0 +1,90 @@
+---
+title: Diagram to Mermaid
+description: Description or diagram image - Mermaid source with an accuracy caveat. Honest 503 without AI.
+---
+
+<ExperimentEmbed slug="diagram-to-mermaid" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects. Mermaid is a draft — verify before shipping.
+</Callout>
+
+Diagram to Mermaid is a Wave 3 Batch H composition lab. Pure helpers live in `logic.ts`; missing providers or stores degrade honestly (never fabricate AI output).
+
+## Features
+
+- Text and/or image - Mermaid
+- Explicit accuracy caveat
+- Honest 503
+
+## Server Reference
+
+### `POST /api/mermaid`
+
+```json
+{ "description": "User to API to DB" }
+```
+
+| Status | Cause |
+| --- | --- |
+| `200` | Success |
+| `400` | Missing input |
+| `503` | No AI provider |
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### Validate
+
+Inputs are length-capped in `logic.ts`; APIs return `400` for missing fields.
+
+</Step>
+<Step>
+
+### Run
+
+Route Handlers compose AI SDK, Redis/Neon, or `ImageResponse` as documented. Fallbacks include honest notes.
+
+</Step>
+</Steps>
+
+## Limitations
+
+- Not a guaranteed-correct diagram converter.
+- Complex diagrams may need edits.
+- No live Mermaid renderer in the API.
+
+## Use in your project
+
+Copy the Route Handler(s) and `logic.ts` from `apps/experiments/diagram-to-mermaid/`.
+
+## Deployment
+
+<ExperimentDeployButton slug="diagram-to-mermaid" />
+
+## Local Development
+
+```bash
+cd apps/experiments/diagram-to-mermaid
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `AI_GATEWAY_API_KEY` | Yes (or OpenAI) | Preferred AI provider |
+
+## Next Steps
+
+<Cards>
+  <Card title="Whiteboard To Tasks" href="/docs/experiments/whiteboard-to-tasks">
+    Related experiment.
+  </Card>
+  <Card title="Schema From Sample Lab" href="/docs/experiments/schema-from-sample-lab">
+    Related experiment.
+  </Card>
+</Cards>

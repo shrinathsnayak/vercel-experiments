@@ -1,0 +1,114 @@
+---
+title: Streaming UI Checklist
+description: Prompt - streamObject checklist items that appear in the UI as the partial object grows.
+---
+
+<ExperimentEmbed slug="streaming-ui-checklist" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+Streaming UI Checklist uses AI SDK `streamObject` and streams NDJSON partial objects to the client. The demo merges each partial `{ items: [...] }` so checklist rows appear as the model fills them in. Missing AI keys return `503` before any stream starts.
+
+## Features
+
+- **streamObject** – schema-backed checklist with optional details.
+- **Partial object UI** – items appear as the stream progresses.
+- **Cancel** – AbortController stops the reader.
+- **Sample launch prompt** – experiment shipping checklist.
+- **Honest `503`** when AI is unavailable.
+
+## Server Reference
+
+### `POST /api/checklist`
+
+```json
+{ "prompt": "..." }
+```
+
+#### Success (`200`)
+
+`application/x-ndjson` stream of partial objects, e.g.:
+
+```json
+{"items":[{"title":"Add AI_GATEWAY_API_KEY"}]}
+{"items":[{"title":"Add AI_GATEWAY_API_KEY"},{"title":"Write logic tests"}]}
+```
+
+| Status | Cause |
+| --- | --- |
+| `503` | No AI provider |
+| `400` | Empty prompt |
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### streamObject + partialObjectStream
+
+Each partial is JSON-stringified as an NDJSON line.
+
+</Step>
+<Step>
+
+### mergePartialChecklist
+
+Client helper keeps only items with non-empty titles.
+
+</Step>
+</Steps>
+
+## Use Cases
+
+- Learn composition patterns for this lab’s stack.
+- Prototype before wiring production auth and quotas.
+- Deploy the standalone app as a reference implementation.
+
+## Limitations
+
+- Demo-scale caps on input size and output counts.
+- No auth / rate limits on public deploys.
+- Model quality depends on input clarity.
+
+## Use in your project
+
+Copy the Route Handler and `logic.ts` helpers from `apps/experiments/streaming-ui-checklist/`. Wire your own persistence and auth as needed.
+
+## Deployment
+
+<ExperimentDeployButton slug="streaming-ui-checklist" />
+
+## Local Development
+
+```bash
+cd apps/experiments/streaming-ui-checklist
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `AI_GATEWAY_API_KEY` | Yes (or `OPENAI_API_KEY`) | Preferred provider |
+| `OPENAI_API_KEY` | No | Fallback |
+| `AI_MODEL` | No | Model override |
+
+## Vercel / Next.js Features Used
+
+- AI SDK `streamObject`
+- Streaming Route Handlers
+- Zod
+
+## Next Steps
+
+<Cards>
+  <Card title="AI Streaming Lab" href="/docs/experiments/ai-streaming-lab">
+    streamText and tools.
+  </Card>
+  <Card title="URL Brief Lab" href="/docs/experiments/url-brief-lab">
+    Token streaming UI pattern.
+  </Card>
+</Cards>

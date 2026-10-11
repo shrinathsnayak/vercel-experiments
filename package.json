@@ -1,0 +1,24 @@
+{
+  "name": "vercel-experiments",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Independent open-source playground for Next.js and Vercel platform experiments",
+  "license": "MIT",
+  "scripts": {
+    "dev": "pnpm --filter @ve/docs dev",
+    "build": "pnpm --filter @ve/docs build",
+    "start": "pnpm --filter @ve/docs start",
+    "types:check": "pnpm --filter @ve/docs types:check",
+    "lint": "pnpm --filter @ve/docs lint",
+    "test": "pnpm --filter @ve/docs test",
+    "test:watch": "pnpm --filter @ve/docs test:watch",
+    "test:e2e": "pnpm --filter @ve/docs test:e2e",
+    "ci": "pnpm --filter @ve/docs run ci",
+    "scaffold:experiments": "node scripts/scaffold-standalone-experiments.mjs",
+    "readme:generate": "node scripts/generate-readme.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "pnpm@10.12.1"
+}

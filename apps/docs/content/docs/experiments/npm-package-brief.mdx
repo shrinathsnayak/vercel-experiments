@@ -1,0 +1,107 @@
+---
+title: npm Package Brief
+description: Look up npm registry metadata for a package name (no install) and get when-to-use / when-to-avoid guidance.
+---
+
+<ExperimentEmbed slug="npm-package-brief" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+npm Package Brief validates a package name, fetches registry + weekly download metadata (no install), then returns when-to-use / when-to-avoid guidance via `generateObject`.
+
+## Features
+
+- **Registry-only** – no `npm install`
+- **Download stats** – last-week point API when available
+- **Use/avoid brief** – grounded in metadata
+
+## Server Reference
+
+### `POST /api/brief`
+
+```json
+{ "packageName": "zod" }
+```
+
+| Status | Cause |
+| --- | --- |
+| `503` | No AI provider |
+| `400` | Validation / upstream / empty input |
+
+
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### Pure helpers in `logic.ts`
+
+Caps, parsers, and clamps live in the experiment folder and are covered by `logic.test.ts`.
+
+</Step>
+<Step>
+
+### Route Handler
+
+`POST /api/brief` validates input, applies fetch/parse limits where relevant, then returns JSON from `generateObject`.
+
+</Step>
+</Steps>
+
+## Use Cases
+
+- Learn composition patterns for this lab’s stack.
+- Prototype before wiring production auth and quotas.
+- Deploy the standalone app as a reference implementation.
+
+## Limitations
+
+- Demo-scale caps on input size and output counts.
+- No auth / rate limits on public deploys.
+- Model quality depends on input clarity.
+- Treat outputs as drafts, not production truth.
+
+## Use in your project
+
+Copy the Route Handler and `logic.ts` helpers from `apps/experiments/npm-package-brief/`. Wire your own persistence and auth as needed.
+
+## Deployment
+
+<ExperimentDeployButton slug="npm-package-brief" />
+
+## Local Development
+
+```bash
+cd apps/experiments/npm-package-brief
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `AI_GATEWAY_API_KEY` | Yes (or `OPENAI_API_KEY`) | Preferred provider |
+| `OPENAI_API_KEY` | No | Fallback |
+| `AI_MODEL` | No | Model override |
+
+## Vercel / Next.js Features Used
+
+- Route Handlers
+- Zod
+- AI SDK `generateObject`
+
+
+## Next Steps
+
+<Cards>
+  <Card title="Resume Fit Lab" href="/docs/experiments/resume-fit-lab">
+    Related experiment.
+  </Card>
+  <Card title="GitHub Issue Triage" href="/docs/experiments/github-issue-triage">
+    Related experiment.
+  </Card>
+</Cards>

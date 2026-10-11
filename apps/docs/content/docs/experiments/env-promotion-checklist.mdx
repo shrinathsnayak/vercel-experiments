@@ -1,0 +1,84 @@
+---
+title: Env Promotion Checklist
+description: Compare required environment variables across Preview vs Production with redacted values.
+---
+
+<ExperimentEmbed slug="env-promotion-checklist" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+Paste Preview and Production env files, check required keys, and review redacted diffs before promoting.
+
+## Features
+
+- Standalone Next.js app under `apps/experiments/env-promotion-checklist/`.
+- Honest degradation when optional services are missing.
+- Unit-tested helpers in `logic.ts`.
+
+## UI Reference
+
+Client-side compare only — paste stays in the browser. No server secrets and no Route Handlers.
+
+| Control | Behavior |
+| --- | --- |
+| Preview / Production paste | Parsed as env files in `logic.ts` |
+| Required keys | Checklist of missing vs present (values redacted) |
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### Run the demo
+
+Use deploy / run-locally from the hub, or `pnpm dev` in the experiment app.
+
+</Step>
+<Step>
+
+### Reuse the helpers
+
+Copy `logic.ts` from `apps/experiments/env-promotion-checklist/` into your project.
+
+</Step>
+</Steps>
+
+## Limitations
+
+- Educational demo — not a production-hardened product.
+- Inputs are length-capped.
+
+## Use in your project
+
+Copy the experiment folder or `logic.ts` helpers into your promotion checklist tooling.
+
+## Deployment
+
+<ExperimentDeployButton slug="env-promotion-checklist" />
+
+## Local Development
+
+```bash
+cd apps/experiments/env-promotion-checklist
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| — | — | No required secrets |
+
+## Vercel / Next.js Features Used
+
+- Next.js, Zod
+
+## Next Steps
+
+<Cards>
+  <Card title="environment-variable-inspector" href="/docs/experiments/environment-variable-inspector">Related lab.</Card>
+  <Card title="global-config-lab" href="/docs/experiments/global-config-lab">Related lab.</Card>
+</Cards>

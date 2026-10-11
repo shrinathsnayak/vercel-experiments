@@ -1,0 +1,125 @@
+---
+title: SQL from Question Lab
+description: DDL + English question - parameterized SQL and explanation; optional Neon run only when DATABASE_URL and demo tables exist (default explain-only).
+---
+
+<ExperimentEmbed slug="sql-from-question-lab" />
+
+<Callout type="warning">
+  This is an experimental demo. Default mode is explain-only. Never run untrusted SQL against production databases.
+</Callout>
+
+SQL from Question Lab takes DDL + an English question and returns parameterized Postgres SQL plus an explanation via `generateObject`. Optional Neon execution (`run: true`) only proceeds when `DATABASE_URL` is set, demo tables `products` / `orders` exist, and the SQL is a single safe SELECT without bind params. Otherwise the lab stays explain-only. No AI keys - `503`.
+
+## Features
+
+- **DDL + question** – sample e-commerce schema included.
+- **Parameterized SQL** – `$1` style with param descriptions.
+- **Unsafe flag** – model marks writes / multi-statements.
+- **Optional Neon run** – off by default; gated in the Route Handler.
+- **Honest unavailable state**.
+
+## Server Reference
+
+### `POST /api/sql`
+
+```json
+{ "ddl": "...", "question": "...", "run": false }
+```
+
+#### Success (`200`)
+
+```json
+{
+  "sql": "SELECT p.name, SUM(o.qty) AS total_qty ...",
+  "explanation": "Aggregates order quantities for active products.",
+  "params": [],
+  "unsafe": false,
+  "run": {
+    "attempted": false,
+    "ok": false,
+    "detail": "Explain-only (default)..."
+  },
+  "provider": "ai-gateway"
+}
+```
+
+| Status | Cause |
+| --- | --- |
+| `503` | No AI provider |
+| `400` | Missing ddl or question |
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### Safety helpers
+
+`isSafeSelect` rejects multi-statements and non-SELECT heads before any Neon call.
+
+</Step>
+<Step>
+
+### Demo table gate
+
+`information_schema` check for `products` and `orders` before execution.
+
+</Step>
+</Steps>
+
+## Use Cases
+
+- Teach text-to-SQL with honest execution gates.
+- Draft analytics queries from DDL.
+- Pair with Neon Postgres Lab for real tables.
+
+## Limitations
+
+- Parameterized free-form SQL is explain-only (no bind API).
+- Demo tables must already exist for run mode.
+- No auth / rate limits.
+
+## Use in your project
+
+Reuse the explain-first pattern; add a proper query builder before binding user-facing parameters.
+
+## Deployment
+
+<ExperimentDeployButton slug="sql-from-question-lab" />
+
+## Local Development
+
+```bash
+cd apps/experiments/sql-from-question-lab
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `AI_GATEWAY_API_KEY` | Yes (or `OPENAI_API_KEY`) | Preferred provider |
+| `OPENAI_API_KEY` | No | Fallback |
+| `AI_MODEL` | No | Model override |
+| `DATABASE_URL` | No | Optional Neon run |
+
+## Vercel / Next.js Features Used
+
+- AI SDK `generateObject`
+- Vercel AI Gateway
+- Neon serverless driver
+- Route Handlers
+- Zod
+
+## Next Steps
+
+<Cards>
+  <Card title="Neon Postgres Lab" href="/docs/experiments/neon-postgres-lab">
+    Marketplace Postgres primitives.
+  </Card>
+  <Card title="Notes to Actions Lab" href="/docs/experiments/notes-to-actions-lab">
+    AI + optional Neon persistence.
+  </Card>
+</Cards>

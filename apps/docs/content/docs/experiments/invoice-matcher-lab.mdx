@@ -1,0 +1,124 @@
+---
+title: Invoice Matcher Lab
+description: Paste invoice and purchase-order text - field-level match/mismatch with confidence scores.
+---
+
+<ExperimentEmbed slug="invoice-matcher-lab" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+Invoice Matcher Lab compares invoice text to PO text with `generateObject`. Each field reports `match` / `mismatch` / `missing` plus a 0–1 confidence. An overall score and short summary sit above the table. No AI keys - `503`.
+
+## Features
+
+- **Dual paste** – invoice + PO textareas with sample docs.
+- **Field table** – values, status, confidence.
+- **Overall confidence** – aggregate score + summary sentence.
+- **Honest unavailable state**.
+
+## Server Reference
+
+### `POST /api/match`
+
+```json
+{ "invoice": "...", "po": "..." }
+```
+
+#### Success (`200`)
+
+```json
+{
+  "overallConfidence": 0.92,
+  "summary": "Totals and vendor match; need-by vs due dates differ.",
+  "fields": [
+    {
+      "field": "PO number",
+      "invoiceValue": "PO-7781",
+      "poValue": "PO-7781",
+      "status": "match",
+      "confidence": 0.99
+    }
+  ],
+  "provider": "ai-gateway"
+}
+```
+
+| Status | Cause |
+| --- | --- |
+| `503` | No AI provider |
+| `400` | Missing invoice or po |
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### Truncate both docs
+
+`truncateText` caps each side at ~12k chars.
+
+</Step>
+<Step>
+
+### clampMatch
+
+Re-clamps confidence to `[0,1]` and field count to 20.
+
+</Step>
+</Steps>
+
+## Use Cases
+
+- Teach structured comparison schemas.
+- Prototype AP invoice matching UX.
+- Spot quantity / total mismatches quickly.
+
+## Limitations
+
+- Not a payment system of record.
+- OCR / image invoices are out of scope (text only).
+- No auth / rate limits.
+
+## Use in your project
+
+Reuse the dual-document `generateObject` schema from `app/api/match/route.ts`.
+
+## Deployment
+
+<ExperimentDeployButton slug="invoice-matcher-lab" />
+
+## Local Development
+
+```bash
+cd apps/experiments/invoice-matcher-lab
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `AI_GATEWAY_API_KEY` | Yes (or `OPENAI_API_KEY`) | Preferred provider |
+| `OPENAI_API_KEY` | No | Fallback |
+| `AI_MODEL` | No | Model override |
+
+## Vercel / Next.js Features Used
+
+- AI SDK `generateObject`
+- Vercel AI Gateway
+- Route Handlers
+- Zod
+
+## Next Steps
+
+<Cards>
+  <Card title="Receipt to JSON Lab" href="/docs/experiments/receipt-to-json-lab">
+    Structured expense extraction.
+  </Card>
+  <Card title="Resume Fit Lab" href="/docs/experiments/resume-fit-lab">
+    Another two-document scoring lab.
+  </Card>
+</Cards>

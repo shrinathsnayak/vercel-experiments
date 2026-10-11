@@ -1,0 +1,116 @@
+---
+title: Voice Notes Lab
+description: Paste a transcript (audio upload stubbed) - generateObject chapters, summary, and action items. Honest 503 without AI.
+---
+
+<ExperimentEmbed slug="voice-notes-lab" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+Voice Notes Lab turns a pasted transcript into chapters, a short summary, and action items via AI SDK `generateObject`. Audio upload is stubbed — only text is processed. Missing AI keys return `503` with setup guidance; the demo never fabricates model output.
+
+## Features
+
+- **Transcript - structure** – chapters with start hints, summary, actions.
+- **Audio stub** – documents the intended upload path without claiming STT.
+- **Honest `503`** when AI Gateway / OpenAI is not configured.
+
+## Server Reference
+
+### `POST /api/voice-notes`
+
+```json
+{ "transcript": "…", "audioStub": true }
+```
+
+#### Success (`200`)
+
+```json
+{
+  "result": {
+    "summary": "…",
+    "chapters": [{ "title": "…", "startHint": "early", "summary": "…" }],
+    "actions": ["…"]
+  },
+  "provider": "ai-gateway"
+}
+```
+
+| Status | Cause |
+| --- | --- |
+| `503` | No AI provider |
+| `400` | Missing transcript |
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### Validate
+
+Truncate transcript; require AI provider or return `AI_SETUP_BODY`.
+
+</Step>
+<Step>
+
+### Structure
+
+`generateObject` with a Zod schema; `clampVoiceResult` caps chapters/actions.
+
+</Step>
+</Steps>
+
+## Use Cases
+
+- Meeting note - action extraction prototype.
+- Teach generateObject schemas for nested lists.
+- Pair with Notes to Actions Lab persistence.
+
+## Limitations
+
+- No real speech-to-text.
+- Demo-scale transcript length cap.
+- No auth on public deploys.
+
+## Use in your project
+
+Copy the Route Handler and `logic.ts` from `apps/experiments/voice-notes-lab/`.
+
+## Deployment
+
+<ExperimentDeployButton slug="voice-notes-lab" />
+
+## Local Development
+
+```bash
+cd apps/experiments/voice-notes-lab
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `AI_GATEWAY_API_KEY` | Yes (or `OPENAI_API_KEY`) | Preferred provider |
+| `OPENAI_API_KEY` | No | Fallback |
+| `AI_MODEL` | No | Model override |
+
+## Vercel / Next.js Features Used
+
+- AI SDK `generateObject`
+- Route Handlers
+- Zod
+
+## Next Steps
+
+<Cards>
+  <Card title="Notes to Actions Lab" href="/docs/experiments/notes-to-actions-lab">
+    Meeting notes - Neon/memory actions.
+  </Card>
+  <Card title="Flashcards from Notes" href="/docs/experiments/flashcards-from-notes">
+    Notes - flip cards JSON.
+  </Card>
+</Cards>

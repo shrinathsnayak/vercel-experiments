@@ -1,0 +1,83 @@
+---
+title: RAG from Markdown
+description: Paste multiple markdown files, retrieve top keyword chunks, and answer with cited source passages.
+---
+
+<ExperimentEmbed slug="rag-from-markdown" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+Multi-file markdown RAG with keyword chunk retrieval and visible source chunks. Missing AI keys return `503`.
+
+## Features
+
+- Standalone Next.js app under `apps/experiments/rag-from-markdown/`.
+- Honest degradation when optional services are missing.
+- Unit-tested helpers in `logic.ts`.
+
+## Server Reference
+
+### `POST /api/ask`
+
+```
+{ "question": "...", "files": [{ "name", "content" }] }
+```
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### Run the demo
+
+Use the embedded playground or `pnpm dev` in the experiment app.
+
+</Step>
+<Step>
+
+### Inspect the handlers
+
+Copy Route Handlers from `apps/experiments/rag-from-markdown/` into your project.
+
+</Step>
+</Steps>
+
+## Limitations
+
+- Educational demo — not a production-hardened product.
+- Inputs are length-capped.
+
+## Use in your project
+
+Copy the experiment folder or individual Route Handlers.
+
+## Deployment
+
+<ExperimentDeployButton slug="rag-from-markdown" />
+
+## Local Development
+
+```bash
+cd apps/experiments/rag-from-markdown
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `AI_GATEWAY_API_KEY` | Yes | Lab configuration |
+
+## Vercel / Next.js Features Used
+
+- AI SDK, AI Gateway, Zod
+
+## Next Steps
+
+<Cards>
+  <Card title="chat-with-your-pdf" href="/docs/experiments/chat-with-your-pdf">Related lab.</Card>
+  <Card title="docs-to-faq-lab" href="/docs/experiments/docs-to-faq-lab">Related lab.</Card>
+</Cards>

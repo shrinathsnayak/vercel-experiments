@@ -1,0 +1,414 @@
+---
+title: AI Streaming Lab
+description: Stream text, structured output, and tool calls through Vercel AI Gateway (or OpenAI) with the AI SDK.
+---
+
+<ExperimentEmbed slug="ai-streaming-lab" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+AI Streaming Lab is a single-endpoint playground for the AI SDK. One Route Handler (`POST /api/ai/chat`) supports three modes: streamed plain text, a structured JSON object generated against a Zod schema, and a streamed text response that can call a server-side tool. Requests go through [Vercel AI Gateway](https://vercel.com/docs/ai-gateway) when `AI_GATEWAY_API_KEY` is set, and fall back to OpenAI via `@ai-sdk/openai` when only `OPENAI_API_KEY` is present.
+
+It teaches how to keep provider keys on the server, how to consume a streamed `Response` in the browser with `ReadableStream`, how structured output differs from streaming, and how to degrade honestly when no provider is configured (the route returns `503` instead of inventing a reply).
+
+## Features
+
+- **Three modes** – `stream` (token-by-token text), `structured` (typed JSON via `generateObject`), and `tools` (streamed text with an `add` tool the model may call).
+- **Gateway first, OpenAI fallback** – provider selection is automatic and reported back to the client as `x-ai-provider` (streams) or `provider` (structured).
+- **Configurable model** – set `AI_MODEL` to override the default `gpt-4o-mini`.
+- **Cancellable requests** – the demo uses an `AbortController`; **Cancel** aborts the `fetch` and appends a "Cancelled" marker.
+- **Input validation** – prompts are limited to 1–4000 characters and the mode is an enum.
+- **Honest unavailable state** – a `503` response with setup instructions when no key exists. Output is never fabricated.
+- **30-second function budget** – `export const maxDuration = 30`.
+
+## Server Reference
+
+### `POST /api/ai/chat`
+
+<TypeTable
+  type={{
+    mode: {
+      description: "Which behaviour to run. `stream` returns a text stream, `structured` returns JSON, `tools` returns a text stream produced by a model that can call the `add` tool.",
+      type: "'stream' | 'structured' | 'tools'",
+      default: "'stream'",
+    },
+    prompt: {
+      description: "The user prompt. 1–4000 characters.",
+      type: "string",
+      required: true,
+    },
+  }}
+/>
+
+#### Streamed modes (`stream`, `tools`)
+
+Returns `200` with a plain-text stream (`toTextStreamResponse`) and the header `x-ai-provider: ai-gateway` or `x-ai-provider: openai`.
+
+```bash
+curl -N -X POST http://localhost:3000/api/ai/chat \
+  -H "content-type: application/json" \
+  -d '{"mode":"stream","prompt":"Explain streaming SSR in two short paragraphs."}'
+```
+
+In `tools` mode the model may call a server-side `add({ a, b })` tool and continue for up to three steps (`stopWhen: stepCountIs(3)`). The HTTP response is a text stream, so you see the model's text, not the raw tool-call events.
+
+#### Structured mode
+
+Returns `200` with a JSON object that matches the schema plus a `provider` field:
+
+```json
+{
+  "summary": "Streaming SSR sends HTML in chunks as data becomes ready.",
+  "bullets": [
+    "The shell is sent immediately",
+    "Suspense boundaries fill in later",
+    "Users see content sooner"
+  ],
+  "sentiment": "neutral",
+  "provider": "ai-gateway"
+}
+```
+
+<TypeTable
+  type={{
+    summary: {
+      description: "Short summary of the prompt's answer.",
+      type: "string",
+    },
+    bullets: {
+      description: "At most 5 bullet points.",
+      type: "string[]",
+    },
+    sentiment: {
+      description: "Model-assigned sentiment.",
+      type: "'positive' | 'neutral' | 'negative'",
+    },
+    provider: {
+      description: "Which provider handled the request.",
+      type: "'ai-gateway' | 'openai'",
+    },
+  }}
+/>
+
+#### Errors
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `503` | `{ "error": "No AI provider configured", "setup": "...", "preferred": "AI_GATEWAY_API_KEY" }` | Neither `AI_GATEWAY_API_KEY` nor `OPENAI_API_KEY` is set |
+| `400` | `{ "error": "Invalid JSON body" }` | Body is not valid JSON |
+| `400` | `{ "error": { "formErrors": [], "fieldErrors": { "prompt": ["..."] } } }` | Zod validation failed (bad `mode`, empty or too-long `prompt`) |
+
+```json
+{
+  "error": "No AI provider configured",
+  "setup": "Add AI_GATEWAY_API_KEY (recommended) or OPENAI_API_KEY to your environment and restart. On Vercel, use one-click deploy or create a Gateway key in the dashboard. This demo never fabricates model output.",
+  "preferred": "AI_GATEWAY_API_KEY"
+}
+```
+
+Errors from the upstream provider itself (an invalid key, quota, or model name) are not caught by the route handler, so they surface as a generic server error.
+
+### `GET /api/services/status`
+
+A companion route that reports which optional services are configured. It returns `id`, `available`, `label`, and `envHints` for each service, including `ai-gateway` and `openai`. It never returns key values.
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### Check for a provider
+
+`aiProviderAvailable()` in `lib/vercel/services.ts` is true when `AI_GATEWAY_API_KEY` or `OPENAI_API_KEY` is non-empty. If not, the route returns `503` before touching the request body.
+
+```ts
+if (!aiProviderAvailable()) {
+  return Response.json(
+    {
+      error: 'No AI provider configured',
+      setup: 'Add AI_GATEWAY_API_KEY (recommended) or OPENAI_API_KEY ...',
+      preferred: 'AI_GATEWAY_API_KEY',
+    },
+    { status: 503 },
+  );
+}
+```
+
+</Step>
+<Step>
+
+### Validate the request
+
+```ts
+const bodySchema = z.object({
+  mode: z.enum(['stream', 'structured', 'tools']).default('stream'),
+  prompt: z.string().min(1).max(4000),
+});
+```
+
+</Step>
+<Step>
+
+### Resolve the model
+
+With a Gateway key, the model is a plain string (`provider/model`) that the AI SDK routes through AI Gateway. Without one, the route builds an OpenAI model from `@ai-sdk/openai`.
+
+```ts
+function resolveModel() {
+  const gateway = getServiceStatus('ai-gateway');
+  const modelId =
+    process.env.AI_MODEL?.trim() ||
+    (gateway.available ? 'openai/gpt-4o-mini' : 'gpt-4o-mini');
+
+  if (gateway.available) {
+    return modelId.includes('/') ? modelId : `openai/${modelId}`;
+  }
+
+  return openai(modelId.replace(/^openai\//, ''));
+}
+```
+
+</Step>
+<Step>
+
+### Run the selected mode
+
+Structured mode awaits a full object; the other two modes return a streamed response immediately.
+
+```ts
+if (mode === 'structured') {
+  const result = await generateObject({
+    model,
+    schema: z.object({
+      summary: z.string(),
+      bullets: z.array(z.string()).max(5),
+      sentiment: z.enum(['positive', 'neutral', 'negative']),
+    }),
+    prompt,
+  });
+  return Response.json({ ...result.object, provider });
+}
+
+if (mode === 'tools') {
+  const result = streamText({
+    model,
+    prompt,
+    tools: {
+      add: tool({
+        description: 'Add two numbers',
+        inputSchema: z.object({ a: z.number(), b: z.number() }),
+        execute: async ({ a, b }) => ({ sum: a + b }),
+      }),
+    },
+    stopWhen: stepCountIs(3),
+  });
+  return result.toTextStreamResponse({ headers: { 'x-ai-provider': provider } });
+}
+
+const result = streamText({ model, prompt });
+return result.toTextStreamResponse({ headers: { 'x-ai-provider': provider } });
+```
+
+</Step>
+<Step>
+
+### Read the stream in the browser
+
+The demo reads the body with `getReader()` and appends decoded chunks to state. A `503` is turned into a readable setup message, and `AbortError` becomes a "Cancelled" marker.
+
+```ts
+const reader = res.body?.getReader();
+const decoder = new TextDecoder();
+while (true) {
+  const { done, value } = await reader.read();
+  if (done) break;
+  setOutput((prev) => prev + decoder.decode(value, { stream: true }));
+}
+```
+
+</Step>
+</Steps>
+
+## Use Cases
+
+- Learn the difference between `streamText` and `generateObject` and when each is appropriate.
+- Prototype a server-side tool and see how multi-step tool calls fit into a single text response.
+- Compare AI Gateway routing with a direct provider key.
+- Practise a safe "service not configured" UX that never fakes model output.
+- Build a cancellable streaming UI with plain `fetch` and `ReadableStream`.
+
+## Limitations
+
+Security notes for this experiment:
+
+- API keys stay server-side.
+- Responses are never fabricated when the provider is unavailable.
+- Prefer `AI_GATEWAY_API_KEY`; `OPENAI_API_KEY` still works as fallback.
+
+Additional limits that come from the code:
+
+- **Gateway detection is explicit.** The route only treats AI Gateway as available when `AI_GATEWAY_API_KEY` is set; it does not auto-detect OIDC-based Gateway access.
+- **No authentication or rate limiting.** Anyone who can reach a deployment can spend your model quota. Add auth and limits before deploying publicly (see [Rate Limiting Simulator](/docs/experiments/rate-limiting-simulator)).
+- **Single-turn only.** There is no conversation history; each request is one prompt.
+- **Tool calls are not shown.** `toTextStreamResponse` emits text only, so tool inputs and outputs are not visible in the demo output.
+- **Only one tool.** `add` sums two numbers; there are no network or file tools.
+- **Prompt length is capped at 4000 characters** and the function is limited to `maxDuration = 30` seconds.
+- **No provider error handling.** Provider failures are not mapped to friendly responses.
+- **Model availability depends on your account.** The default is `gpt-4o-mini` (`openai/gpt-4o-mini` through Gateway); set `AI_MODEL` if your account uses a different one.
+
+## Use in your project
+
+A minimal streaming endpoint with the same provider-selection pattern:
+
+```ts
+// app/api/chat/route.ts
+import { openai } from '@ai-sdk/openai';
+import { streamText } from 'ai';
+import { z } from 'zod';
+
+export const maxDuration = 30;
+
+const bodySchema = z.object({ prompt: z.string().min(1).max(4000) });
+
+function resolveModel() {
+  const modelId = process.env.AI_MODEL?.trim() || 'gpt-4o-mini';
+
+  // AI SDK routes plain "provider/model" strings through AI Gateway
+  // when AI_GATEWAY_API_KEY is set.
+  if (process.env.AI_GATEWAY_API_KEY?.trim()) {
+    return modelId.includes('/') ? modelId : `openai/${modelId}`;
+  }
+  return openai(modelId.replace(/^openai\//, ''));
+}
+
+export async function POST(request: Request) {
+  if (!process.env.AI_GATEWAY_API_KEY && !process.env.OPENAI_API_KEY) {
+    return Response.json({ error: 'No AI provider configured' }, { status: 503 });
+  }
+
+  const parsed = bodySchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) {
+    return Response.json({ error: parsed.error.flatten() }, { status: 400 });
+  }
+
+  const result = streamText({ model: resolveModel(), prompt: parsed.data.prompt });
+  return result.toTextStreamResponse();
+}
+```
+
+Client-side consumption:
+
+```tsx
+'use client';
+
+import { useState } from 'react';
+
+export function StreamingOutput() {
+  const [text, setText] = useState('');
+
+  async function run() {
+    setText('');
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ prompt: 'Explain Suspense in one paragraph.' }),
+    });
+    if (!res.body) return;
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      setText((prev) => prev + decoder.decode(value, { stream: true }));
+    }
+  }
+
+  return (
+    <>
+      <button onClick={run}>Run</button>
+      <pre>{text}</pre>
+    </>
+  );
+}
+```
+
+## Deployment
+
+<ExperimentDeployButton slug="ai-streaming-lab" />
+
+
+The deploy button prompts for `AI_GATEWAY_API_KEY` and `AI_MODEL` when you clone the repository. Create a key in the AI Gateway section of the Vercel dashboard, paste it during deploy (or add it later under Project Settings), and redeploy. No Marketplace store is required for this experiment.
+
+Use the Deploy button on this experiment page. Required variables are listed in the Configuration section below.
+
+## Local Development
+
+```bash
+pnpm install
+# Add AI_GATEWAY_API_KEY (or OPENAI_API_KEY) to .env.local
+pnpm dev
+```
+
+Then try the three modes:
+
+```bash
+# Streamed text (-N disables curl buffering)
+curl -N -X POST http://localhost:3000/api/ai/chat \
+  -H "content-type: application/json" \
+  -d '{"mode":"stream","prompt":"Give me three facts about HTTP caching."}'
+
+# Structured output
+curl -s -X POST http://localhost:3000/api/ai/chat \
+  -H "content-type: application/json" \
+  -d '{"mode":"structured","prompt":"Summarise the benefits of Suspense."}'
+
+# Tool calling (ask for arithmetic so the model uses the add tool)
+curl -N -X POST http://localhost:3000/api/ai/chat \
+  -H "content-type: application/json" \
+  -d '{"mode":"tools","prompt":"What is 1234 plus 5678? Use the add tool."}'
+
+# Validation error
+curl -i -X POST http://localhost:3000/api/ai/chat \
+  -H "content-type: application/json" \
+  -d '{"mode":"nope"}'
+```
+
+With no key configured, every request returns the `503` setup response.
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `AI_GATEWAY_API_KEY` | Yes (or `OPENAI_API_KEY`) | Preferred provider. Routes requests through Vercel AI Gateway. |
+| `AI_MODEL` | No | Model slug, e.g. `openai/gpt-4o-mini`. Defaults to `openai/gpt-4o-mini` (Gateway) or `gpt-4o-mini` (OpenAI). |
+| `OPENAI_API_KEY` | No | Fallback when `AI_GATEWAY_API_KEY` is not set. |
+
+All three are server-only. Never expose them through `NEXT_PUBLIC_*` variables. The registry lists `AI_GATEWAY_API_KEY` as the required variable; OpenAI is a documented fallback.
+
+## Vercel / Next.js Features Used
+
+- [AI SDK](https://ai-sdk.dev) (`streamText`, `generateObject`, `tool`, `stepCountIs`, `toTextStreamResponse`).
+- [Vercel AI Gateway](https://vercel.com/docs/ai-gateway) for provider routing with a single key.
+- [Route Handlers](https://nextjs.org/docs/app/api-reference/file-conventions/route) with streamed `Response` bodies.
+- [Route segment config](https://nextjs.org/docs/app/api-reference/file-conventions/route-segment-config) (`maxDuration`) to set the function duration.
+- Zod for request and structured-output schemas.
+
+## Next Steps
+
+<Cards>
+  <Card title="AI Code Sandbox" href="/docs/experiments/ai-code-sandbox">
+    Run constrained code in an isolated Vercel Sandbox microVM.
+  </Card>
+  <Card title="Environment Variable Inspector" href="/docs/experiments/environment-variable-inspector">
+    Learn which variables are server-only versus public.
+  </Card>
+  <Card title="AI SDK documentation" href="https://ai-sdk.dev/docs">
+    Streaming, structured output, and tools in depth.
+  </Card>
+  <Card title="Vercel AI Gateway" href="https://vercel.com/docs/ai-gateway">
+    Keys, model routing, and observability.
+  </Card>
+</Cards>

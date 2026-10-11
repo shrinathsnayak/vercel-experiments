@@ -1,0 +1,110 @@
+---
+title: Syllabus Planner Lab
+description: Paste a syllabus - weekly study plan JSON with topics, tasks, and estimated hours.
+---
+
+<ExperimentEmbed slug="syllabus-planner-lab" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+Syllabus Planner Lab turns a syllabus paste into a weekly study plan via `generateObject`. Weeks include focus, topics, tasks, and estimated hours. Export the plan as JSON. No AI keys - `503`.
+
+## Features
+
+- **Syllabus - weeks** – up to 16 weeks inferred from the source.
+- **Tips** – short study advice array.
+- **Export JSON** – download the full plan.
+- **Sample CS syllabus** – 8-week web platforms course.
+- **Honest unavailable state**.
+
+## Server Reference
+
+### `POST /api/plan`
+
+```json
+{ "syllabus": "..." }
+```
+
+#### Success (`200`)
+
+```json
+{
+  "courseTitle": "CS 240 - Web Platforms",
+  "tips": ["Block 2 hours after each lecture for readings."],
+  "weeks": [
+    {
+      "week": 1,
+      "focus": "HTTP basics",
+      "topics": ["caching", "CDN"],
+      "tasks": ["Read MDN HTTP"],
+      "estimatedHours": 6
+    }
+  ],
+  "provider": "ai-gateway"
+}
+```
+
+| Status | Cause |
+| --- | --- |
+| `503` | No AI provider |
+| `400` | Empty syllabus |
+
+## Implementation Details
+
+`truncateText` + `clampPlan` enforce week/hour/tip caps after the model call.
+
+## Use Cases
+
+- Study planning from course outlines.
+- Teach fixed-max nested array schemas.
+- Exportable plan JSON for calendars.
+
+## Limitations
+
+- Quality depends on syllabus clarity.
+- No calendar sync.
+- No auth / rate limits.
+
+## Use in your project
+
+Copy `app/api/plan/route.ts` and the export button pattern from `demo.tsx`.
+
+## Deployment
+
+<ExperimentDeployButton slug="syllabus-planner-lab" />
+
+## Local Development
+
+```bash
+cd apps/experiments/syllabus-planner-lab
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `AI_GATEWAY_API_KEY` | Yes (or `OPENAI_API_KEY`) | Preferred provider |
+| `OPENAI_API_KEY` | No | Fallback |
+| `AI_MODEL` | No | Model override |
+
+## Vercel / Next.js Features Used
+
+- AI SDK `generateObject`
+- Vercel AI Gateway
+- Route Handlers
+- Zod
+
+## Next Steps
+
+<Cards>
+  <Card title="Flashcards from Notes" href="/docs/experiments/flashcards-from-notes">
+    Notes - flip cards.
+  </Card>
+  <Card title="PDF Quiz Lab" href="/docs/experiments/pdf-quiz-lab">
+    MCQs from longer source docs.
+  </Card>
+</Cards>

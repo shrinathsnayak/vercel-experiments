@@ -1,0 +1,107 @@
+---
+title: Codebase README Lab
+description: Paste a file tree and snippets - draft README sections downloadable as markdown.
+---
+
+<ExperimentEmbed slug="codebase-readme-lab" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+Codebase README Lab drafts README sections from a pasted file tree and code snippets via `generateObject`. `toMarkdown` assembles a downloadable `README.md`. The prompt instructs the model not to invent APIs outside the paste. No AI keys - `503`.
+
+## Features
+
+- **Tree + snippets** – two textareas with samples.
+- **Sectioned draft** – overview, features, getting started, structure, config, scripts.
+- **Download markdown** – client-side file download.
+- **Honest unavailable state**.
+
+## Server Reference
+
+### `POST /api/readme`
+
+```json
+{ "tree": "...", "snippets": "..." }
+```
+
+At least one of `tree` or `snippets` is required.
+
+#### Success (`200`)
+
+```json
+{
+  "title": "my-app",
+  "overview": "…",
+  "features": ["Health route"],
+  "gettingStarted": "pnpm install && pnpm dev",
+  "projectStructure": "…",
+  "configuration": "DATABASE_URL optional",
+  "scripts": ["pnpm dev"],
+  "provider": "ai-gateway"
+}
+```
+
+| Status | Cause |
+| --- | --- |
+| `503` | No AI provider |
+| `400` | Both inputs empty |
+
+## Implementation Details
+
+`clampReadme` + `toMarkdown` live in `logic.ts` for testable assembly without the model.
+
+## Use Cases
+
+- Bootstrap READMEs for small apps.
+- Teach grounded doc generation.
+- Export markdown into repos.
+
+## Limitations
+
+- Will miss context not pasted.
+- No git history awareness.
+- No auth / rate limits.
+
+## Use in your project
+
+Copy `toMarkdown` and the download helper; persist drafts to Blob if needed.
+
+## Deployment
+
+<ExperimentDeployButton slug="codebase-readme-lab" />
+
+## Local Development
+
+```bash
+cd apps/experiments/codebase-readme-lab
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `AI_GATEWAY_API_KEY` | Yes (or `OPENAI_API_KEY`) | Preferred provider |
+| `OPENAI_API_KEY` | No | Fallback |
+| `AI_MODEL` | No | Model override |
+
+## Vercel / Next.js Features Used
+
+- AI SDK `generateObject`
+- Vercel AI Gateway
+- Route Handlers
+- Zod
+
+## Next Steps
+
+<Cards>
+  <Card title="Changelog from Diff Lab" href="/docs/experiments/changelog-from-diff-lab">
+    Diff - release notes.
+  </Card>
+  <Card title="API Mock from OpenAPI" href="/docs/experiments/api-mock-from-openapi">
+    Spec - Route Handler stubs.
+  </Card>
+</Cards>

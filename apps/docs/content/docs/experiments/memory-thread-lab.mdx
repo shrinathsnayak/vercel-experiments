@@ -1,0 +1,110 @@
+---
+title: Memory Thread Lab
+description: Multi-turn chat with Redis thread memory, TTL visualization, and an honest in-memory fallback.
+---
+
+<ExperimentEmbed slug="memory-thread-lab" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+Memory Thread Lab is a multi-turn chat that stores thread messages in Redis with a TTL (and shows remaining time), or falls back to process memory without TTL. Missing AI keys return `503`.
+
+## Features
+
+- **Multi-turn chat** – prior messages passed to the model.
+- **Redis TTL** – thread keys expire; UI visualizes remaining time.
+- **Memory fallback** – honest note when Redis is absent.
+- **Honest `503`** when AI is not configured.
+
+## Server Reference
+
+### `POST /api/chat`
+
+```json
+{ "message": "...", "threadId": "optional" }
+```
+
+### `GET /api/thread?id=...`
+
+Returns thread + TTL visualization.
+
+### `DELETE /api/thread?id=...`
+
+Clears a thread.
+
+| Status | Cause |
+| --- | --- |
+| `503` | No AI provider |
+| `404` | Thread missing/expired |
+| `400` | Empty message / missing id |
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### Load thread
+
+Redis GET or memory Map; clamp turns.
+
+</Step>
+<Step>
+
+### Reply + save
+
+`generateText` with history; Redis SET with `ex` TTL.
+
+</Step>
+</Steps>
+
+## Use Cases
+
+- Learn Redis memory patterns for chat.
+- Prototype short-lived conversational state.
+
+## Limitations
+
+- Demo TTL (~15 minutes); not a durable agent memory product.
+- Turn count capped.
+
+## Use in your project
+
+Copy handlers from `apps/experiments/memory-thread-lab/`.
+
+## Deployment
+
+<ExperimentDeployButton slug="memory-thread-lab" />
+
+## Local Development
+
+```bash
+cd apps/experiments/memory-thread-lab
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `AI_GATEWAY_API_KEY` | Yes (or `OPENAI_API_KEY`) | Chat |
+| `UPSTASH_REDIS_REST_URL` / `TOKEN` | No | Thread memory + TTL |
+
+## Vercel / Next.js Features Used
+
+- AI SDK `generateText`
+- Upstash Redis
+- Route Handlers
+
+## Next Steps
+
+<Cards>
+  <Card title="AI Streaming Lab" href="/docs/experiments/ai-streaming-lab">
+    Streaming chat patterns.
+  </Card>
+  <Card title="Redis Cache Lab" href="/docs/experiments/redis-cache-lab">
+    TTL cache primitives.
+  </Card>
+</Cards>

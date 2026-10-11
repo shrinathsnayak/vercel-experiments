@@ -1,0 +1,70 @@
+---
+title: Onboarding Checklist AI
+description: Role - AI onboarding checklist with Neon/memory progress tracking.
+---
+
+<ExperimentEmbed slug="onboarding-checklist-ai" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+Onboarding Checklist AI is a Batch G vertical mini composition lab. Pure helpers live in `logic.ts`; AI calls return an honest `503` when no provider is configured.
+
+## Features
+
+- AI checklist
+- Neon/memory progress
+- progressPercent helper
+
+## Server Reference
+
+### `POST /api/checklist`
+
+```json
+{ "role": "..." }
+```
+
+| Status | Cause |
+| --- | --- |
+| `200` | Success (or stream) |
+| `400` | Missing / invalid input |
+| `503` | No AI provider (`AI_GATEWAY_API_KEY` or `OPENAI_API_KEY`) |
+
+
+Optional Neon progress endpoints degrade to in-memory when unset.
+
+## Limitations
+
+- Not HRIS.
+- Memory resets without Neon.
+- Generic role advice.
+
+## Deployment
+
+<ExperimentDeployButton slug="onboarding-checklist-ai" />
+
+## Local Development
+
+```bash
+cd apps/experiments/onboarding-checklist-ai
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `AI_GATEWAY_API_KEY` | Yes (or OpenAI) | Preferred AI provider |
+| `OPENAI_API_KEY` | No | Fallback |
+| `AI_MODEL` | No | Model override |
+| `DATABASE_URL` | No | Progress persistence |
+
+
+## Next Steps
+
+<Cards>
+  <Card title="Notes To Actions Lab" href="/docs/experiments/notes-to-actions-lab">Related experiment.</Card>
+  <Card title="Neon Postgres Lab" href="/docs/experiments/neon-postgres-lab">Related experiment.</Card>
+</Cards>

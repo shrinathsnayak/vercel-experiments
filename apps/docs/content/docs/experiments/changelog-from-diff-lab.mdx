@@ -1,0 +1,114 @@
+---
+title: Changelog from Diff Lab
+description: Paste a PR diff or commit log - generateObject customer-facing bullets and internal notes.
+---
+
+<ExperimentEmbed slug="changelog-from-diff-lab" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+Changelog from Diff Lab turns a pasted PR diff or commit log into `{ customerFacing, internalNotes }` via `generateObject`. Outputs are capped and treated as drafts. Missing AI keys return `503` - nothing is fabricated.
+
+## Features
+
+- **Diff - dual changelog** – customer-facing + internal notes.
+- **Length caps** – ~20k chars of input; 12 bullets per list.
+- **Sample commit/diff** – Redis FAQ cache example.
+- **Honest `503`** when AI is unavailable.
+
+## Server Reference
+
+### `POST /api/changelog`
+
+```json
+{ "diff": "commit ...\ndiff --git ..." }
+```
+
+#### Success (`200`)
+
+```json
+{
+  "customerFacing": ["Faster FAQ answers via cache"],
+  "internalNotes": ["Requires Upstash Redis env"],
+  "provider": "ai-gateway"
+}
+```
+
+| Status | Cause |
+| --- | --- |
+| `503` | No AI provider |
+| `400` | Empty diff |
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### truncateText + generateObject
+
+Zod schema for both bullet lists.
+
+</Step>
+<Step>
+
+### clampChangelog
+
+Trims and caps customerFacing / internalNotes arrays.
+
+</Step>
+</Steps>
+
+## Use Cases
+
+- Learn composition patterns for this lab’s stack.
+- Prototype before wiring production auth and quotas.
+- Deploy the standalone app as a reference implementation.
+
+## Limitations
+
+- Demo-scale caps on input size and output counts.
+- No auth / rate limits on public deploys.
+- Model quality depends on input clarity.
+
+## Use in your project
+
+Copy the Route Handler and `logic.ts` helpers from `apps/experiments/changelog-from-diff-lab/`. Wire your own persistence and auth as needed.
+
+## Deployment
+
+<ExperimentDeployButton slug="changelog-from-diff-lab" />
+
+## Local Development
+
+```bash
+cd apps/experiments/changelog-from-diff-lab
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `AI_GATEWAY_API_KEY` | Yes (or `OPENAI_API_KEY`) | Preferred provider |
+| `OPENAI_API_KEY` | No | Fallback |
+| `AI_MODEL` | No | Model override |
+
+## Vercel / Next.js Features Used
+
+- AI SDK `generateObject`
+- Route Handlers
+- Zod
+
+## Next Steps
+
+<Cards>
+  <Card title="Flashcards from Notes" href="/docs/experiments/flashcards-from-notes">
+    Text - structured arrays.
+  </Card>
+  <Card title="Resume Fit Lab" href="/docs/experiments/resume-fit-lab">
+    Multi-field generateObject.
+  </Card>
+</Cards>

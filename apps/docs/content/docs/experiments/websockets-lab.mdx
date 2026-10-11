@@ -1,0 +1,85 @@
+---
+title: WebSockets Lab
+description: "Document Vercel/Fluid realtime constraints with an honest SSE playground versus full duplex WebSockets."
+---
+
+<ExperimentEmbed slug="websockets-lab" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+Vercel Fluid / serverless functions are a poor fit for long-lived bidirectional WebSockets. This lab documents the tradeoffs and ships an **SSE playground labeled honestly** as a one-way alternative, plus guidance for external WS providers.
+
+## Features
+
+- SSE streaming playground
+- Comparison table of realtime options
+- Clear WS vs SSE labeling
+- Recommendation helper for transport choice
+
+## API Reference
+
+### GET /api/sse
+
+`text/event-stream` with `hello`, `tick`, and `done` events (about 8 ticks).
+
+## Implementation Details
+
+<Files>
+  <Folder name="apps/experiments/websockets-lab" defaultOpen>
+    <File name="demo.tsx" />
+    <File name="logic.ts" />
+    <File name="logic.test.ts" />
+  </Folder>
+</Files>
+
+`formatSseEvent` builds SSE frames. The route uses a `ReadableStream` and aborts cleanly when the client disconnects.
+
+## Use Cases
+
+- AI token streaming
+- Progress logs
+- Deciding when to buy external WS
+
+## Limitations
+
+- Not a WebSocket - client cannot push over the same channel.
+- Stream ends after a short demo sequence.
+- Platform limits still apply to long-lived connections.
+
+## Use in your project
+
+Deploy or copy `apps/experiments/websockets-lab/` and adapt the Route Handlers and pure helpers in `logic.ts`. Keep honest fallbacks when optional services are missing.
+
+## Deployment
+
+<ExperimentDeployButton slug="websockets-lab" />
+
+## Local Development
+
+```bash
+cd apps/experiments/websockets-lab
+pnpm install
+pnpm dev
+```
+
+Open http://localhost:3010
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| _(none)_ | - | Works without extra secrets |
+
+## Vercel / Next.js Features Used
+
+- Route Handlers
+- Streaming Response
+- Server-Sent Events
+
+## Next Steps
+
+- Explore related labs from the registry `relatedSlugs`
+- Harden secrets, auth, and input limits before production
+- Prefer platform primitives when you outgrow demo patterns

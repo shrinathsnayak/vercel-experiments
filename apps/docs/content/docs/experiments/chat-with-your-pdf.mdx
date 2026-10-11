@@ -1,0 +1,163 @@
+---
+title: Chat with Your PDF
+description: Chunk a document, retrieve top passages by keyword overlap (no embeddings), and answer with cited quotes.
+---
+
+<ExperimentEmbed slug="chat-with-your-pdf" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+Chat with Your PDF is a minimal RAG-style lab without embeddings. Paste document text or upload `.txt` / `.md` / `.pdf`, ask a question, and the server chunks the document in `logic.ts`, scores chunks by keyword overlap, and calls `generateObject` for an answer plus `citations[{ quote, chunkIndex }]`. Missing AI keys return `503` - answers are never fabricated.
+
+## Features
+
+- **Chunking** – `chunkText` with configurable size/overlap (defaults 800 / 100).
+- **Keyword retrieval** – `retrieveTopChunks` ranks by token overlap (no vector DB).
+- **Cited answers** – structured `{ answer, citations[] }` via `generateObject`.
+- **PDF support** – `unpdf` extraction with clear `400` errors on failure.
+- **Honest unavailable state** – Gateway / OpenAI required; no stub answers.
+
+## Server Reference
+
+### `POST /api/chat`
+
+JSON `{ document, question }` or `multipart/form-data` with `document`, `question`, and optional `file`.
+
+<TypeTable
+  type={{
+    document: {
+      description: "Full document text (truncated ~40k chars). Ignored if a parsable file is uploaded.",
+      type: "string",
+    },
+    question: {
+      description: "User question.",
+      type: "string",
+      required: true,
+    },
+    file: {
+      description: "Optional .txt / .md / .pdf (multipart).",
+      type: "File",
+    },
+  }}
+/>
+
+#### Success (`200`)
+
+```json
+{
+  "answer": "Keep BLOB_READ_WRITE_TOKEN on the server.",
+  "citations": [{ "quote": "Keep BLOB_READ_WRITE_TOKEN on the server.", "chunkIndex": 0 }],
+  "retrievedChunkIndexes": [0, 2],
+  "chunkCount": 3,
+  "provider": "ai-gateway"
+}
+```
+
+#### Errors
+
+| Status | Cause |
+| --- | --- |
+| `503` | No AI provider configured |
+| `400` | Missing question/document, PDF parse failure, empty chunks |
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### Chunk the document
+
+```ts
+const chunks = chunkText(truncateText(document, MAX_DOC_CHARS));
+```
+
+</Step>
+<Step>
+
+### Retrieve by keyword overlap
+
+```ts
+const retrieved = retrieveTopChunks(question, chunks, TOP_K);
+```
+
+Tokens longer than two characters are counted; top-K chunks (default 4) are passed to the model as labeled context.
+
+</Step>
+<Step>
+
+### Answer with citations
+
+`generateObject` returns `answer` plus `citations` that must reference the labeled `[chunk N]` indexes from the prompt context.
+
+</Step>
+</Steps>
+
+## Use Cases
+
+- Teach retrieval-augmented generation without standing up embeddings.
+- Prototype cited Q&A over policies, READMEs, or release notes.
+- Combine PDF extraction with structured AI SDK output.
+
+## Limitations
+
+- Keyword overlap is not semantic search - paraphrases may miss relevant chunks.
+- No auth, rate limits, or persistent document store.
+- Large / scanned PDFs may fail extraction.
+- Citation fidelity depends on the model following the prompt.
+
+## Use in your project
+
+Reuse `chunkText` / `retrieveTopChunks` from `logic.ts` and the `POST` handler. Swap keyword scoring for embeddings later without changing the citation schema.
+
+## Deployment
+
+<ExperimentDeployButton slug="chat-with-your-pdf" />
+
+Requires `AI_GATEWAY_API_KEY` (or set `OPENAI_API_KEY` after deploy).
+
+## Local Development
+
+```bash
+cd apps/experiments/chat-with-your-pdf
+pnpm install
+# Add AI_GATEWAY_API_KEY (or OPENAI_API_KEY) to .env.local
+pnpm dev
+```
+
+```bash
+curl -s -X POST http://localhost:3010/api/chat \
+  -H "content-type: application/json" \
+  -d '{"document":"Keep BLOB_READ_WRITE_TOKEN on the server.","question":"Where should the Blob token live?"}'
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `AI_GATEWAY_API_KEY` | Yes (or `OPENAI_API_KEY`) | Preferred provider |
+| `OPENAI_API_KEY` | No | Fallback |
+| `AI_MODEL` | No | Model override |
+
+## Vercel / Next.js Features Used
+
+- AI SDK `generateObject`
+- Vercel AI Gateway
+- Route Handlers
+- `unpdf`
+- Zod
+
+## Next Steps
+
+<Cards>
+  <Card title="PDF Quiz Lab" href="/docs/experiments/pdf-quiz-lab">
+    Generate interactive quizzes from the same document sources.
+  </Card>
+  <Card title="AI Streaming Lab" href="/docs/experiments/ai-streaming-lab">
+    Streaming and structured AI SDK modes.
+  </Card>
+  <Card title="Blob Storage Lab" href="/docs/experiments/blob-storage-lab">
+    Persist uploaded documents with Vercel Blob.
+  </Card>
+</Cards>

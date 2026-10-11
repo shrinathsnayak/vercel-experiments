@@ -1,0 +1,107 @@
+---
+title: GitHub Issue Triage
+description: Paste an issue title/body - suggested labels, severity, and a first-response draft. No GitHub token.
+---
+
+<ExperimentEmbed slug="github-issue-triage" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+GitHub Issue Triage is paste-only: no GitHub token, no remote mutations. It returns kebab-case labels, severity, a first-response draft, and clarifying questions via `generateObject`.
+
+## Features
+
+- **No GitHub token** – never opens or labels issues remotely
+- **Labels + severity** – maintainer-oriented triage
+- **First-response draft** – polite, grounded in the issue text
+
+## Server Reference
+
+### `POST /api/triage`
+
+```json
+{ "title": "...", "body": "..." }
+```
+
+| Status | Cause |
+| --- | --- |
+| `503` | No AI provider |
+| `400` | Validation / upstream / empty input |
+
+
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### Pure helpers in `logic.ts`
+
+Caps, parsers, and clamps live in the experiment folder and are covered by `logic.test.ts`.
+
+</Step>
+<Step>
+
+### Route Handler
+
+`POST /api/triage` validates input, applies fetch/parse limits where relevant, then returns JSON from `generateObject`.
+
+</Step>
+</Steps>
+
+## Use Cases
+
+- Learn composition patterns for this lab’s stack.
+- Prototype before wiring production auth and quotas.
+- Deploy the standalone app as a reference implementation.
+
+## Limitations
+
+- Demo-scale caps on input size and output counts.
+- No auth / rate limits on public deploys.
+- Model quality depends on input clarity.
+- Treat outputs as drafts, not production truth.
+
+## Use in your project
+
+Copy the Route Handler and `logic.ts` helpers from `apps/experiments/github-issue-triage/`. Wire your own persistence and auth as needed.
+
+## Deployment
+
+<ExperimentDeployButton slug="github-issue-triage" />
+
+## Local Development
+
+```bash
+cd apps/experiments/github-issue-triage
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `AI_GATEWAY_API_KEY` | Yes (or `OPENAI_API_KEY`) | Preferred provider |
+| `OPENAI_API_KEY` | No | Fallback |
+| `AI_MODEL` | No | Model override |
+
+## Vercel / Next.js Features Used
+
+- Route Handlers
+- Zod
+- AI SDK `generateObject`
+
+
+## Next Steps
+
+<Cards>
+  <Card title="Changelog from Diff Lab" href="/docs/experiments/changelog-from-diff-lab">
+    Related experiment.
+  </Card>
+  <Card title="Stack Trace Fixer" href="/docs/experiments/stack-trace-fixer">
+    Related experiment.
+  </Card>
+</Cards>

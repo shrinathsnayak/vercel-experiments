@@ -1,0 +1,121 @@
+---
+title: Waitlist Viral Lab
+description: Email waitlist with Neon/memory storage, referral codes, position boosts, and Cron drip preview (no real email).
+---
+
+<ExperimentEmbed slug="waitlist-viral-lab" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+Waitlist Viral Lab accepts emails into Neon when `DATABASE_URL` is set (otherwise an in-memory map), issues referral codes, boosts position when friends join with your code, and exposes a Cron-style drip **preview** that never sends mail.
+
+## Features
+
+- **Join waitlist** – email + optional referral code.
+- **Referral codes + position** – demo boost capped at 5 spots.
+- **Neon or memory** – `experiment_waitlist` table when configured.
+- **Cron drip preview** – day 0/3/7 message drafts; no SMTP.
+- Honest notes when storage is process-local.
+
+## API Reference
+
+### `POST /api/waitlist`
+
+```json
+{ "email": "alex@acme.io", "referredBy": "ACME0001" }
+```
+
+#### Success (`200`)
+
+```json
+{
+  "entry": { "position": 7, "referralCode": "…" },
+  "storage": "neon"
+}
+```
+
+### `GET /api/waitlist`
+
+Lists entries (`storage: neon | memory`).
+
+### `GET /api/drip?run=1`
+
+Returns drip preview messages. In production, gate with `Authorization: Bearer CRON_SECRET`.
+
+| Status | Cause |
+| --- | --- |
+| `400` | Invalid email / unknown referral |
+| `401` | Cron auth failed |
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### Persist signup
+
+Normalize email, assign position, optional referral boost, Neon insert or module `Map`.
+
+</Step>
+<Step>
+
+### Drip preview
+
+`buildDripPreview` in `logic.ts` formats day 0/3/7 subjects — Cron hits `/api/drip` but never sends email.
+
+</Step>
+</Steps>
+
+## Use Cases
+
+- Learn referral waitlist + Cron composition.
+- Prototype before wiring ESP / fraud controls.
+- Deploy the standalone app as a reference implementation.
+
+## Limitations
+
+- Demo-scale caps; referral boost is not fraud-resistant.
+- No real email delivery.
+- Memory mode resets on cold start.
+
+## Use in your project
+
+Copy the Route Handlers and `logic.ts` helpers from `apps/experiments/waitlist-viral-lab/`.
+
+## Deployment
+
+<ExperimentDeployButton slug="waitlist-viral-lab" />
+
+## Local Development
+
+```bash
+cd apps/experiments/waitlist-viral-lab
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `DATABASE_URL` | No | Neon persistence |
+| `CRON_SECRET` | Prod cron | Authorize forced drip runs |
+
+## Vercel / Next.js Features Used
+
+- Neon serverless Postgres
+- Vercel Cron (`vercel.json`)
+- Route Handlers
+
+## Next Steps
+
+<Cards>
+  <Card title="Form to CRM Lab" href="/docs/experiments/form-to-crm-lab">
+    Lead form - AI enrich - Neon/memory.
+  </Card>
+  <Card title="Cron Jobs Lab" href="/docs/experiments/cron-jobs-lab">
+    Heartbeat Cron patterns.
+  </Card>
+</Cards>

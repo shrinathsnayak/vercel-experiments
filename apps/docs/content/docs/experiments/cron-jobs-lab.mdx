@@ -1,0 +1,343 @@
+---
+title: Cron Jobs Lab
+description: "Inspect Vercel Cron schedules and persist heartbeat runs to Redis or Blob."
+---
+
+<ExperimentEmbed slug="cron-jobs-lab" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+The Cron Jobs Lab shows how [Vercel Cron](https://vercel.com/docs/cron-jobs) invokes a Route Handler on a schedule. A cron entry in `vercel.json` calls `/api/cron/heartbeat` at minute 0 of every hour. The handler authorizes the request, records a heartbeat payload to Upstash Redis (or Vercel Blob when Redis is absent), and a companion status route reports the last recorded run so the demo can display it.
+
+## Features
+
+- **Real schedule.** `vercel.json` registers `/api/cron/heartbeat` with `0 * * * *` (hourly at minute 0). The demo describes the expression in plain language.
+- **Run now.** The **Run heartbeat now** button calls the heartbeat route directly so you can see the persistence path without waiting for the scheduler.
+- **Status view.** `GET /api/cron/status` returns the configured schedule, route, storage backend, and the last heartbeat when Redis is available.
+- **Storage fallback.** The heartbeat writes to Redis first, then Blob, then nothing (`ephemeral`).
+- **Authorization.** Production requests are checked against `CRON_SECRET` when it is set.
+- **One-click provisioning.** The Deploy button provisions Redis and Blob and prompts for `CRON_SECRET`.
+
+## API Reference
+
+### GET /api/cron/heartbeat
+
+Records one heartbeat. `POST` is also exported and simply calls the same handler.
+
+**Authorization**
+
+- If `CRON_SECRET` is set, the request must send `Authorization: Bearer <CRON_SECRET>`. Vercel Cron includes this header automatically when the variable is configured in the project.
+- If `CRON_SECRET` is not set, the request is allowed when the `user-agent` contains `vercel-cron`, or when `NODE_ENV` is not `production`.
+
+<TypeTable
+  type={{
+    Authorization: {
+      type: 'string (header)',
+      description: 'Bearer <CRON_SECRET>. Required whenever CRON_SECRET is set.',
+    },
+    'Response 200': {
+      type: '{ ok: true, ranAt, path, schedule, storage }',
+      description:
+        'ranAt is an ISO timestamp, path is "/api/cron/heartbeat", schedule is "0 * * * *", and storage is "redis", "blob", or "ephemeral".',
+    },
+    'Response 401': {
+      type: '{ error: "Unauthorized" }',
+      description: 'The authorization rule above was not satisfied.',
+    },
+  }}
+/>
+
+Storage precedence:
+
+<TypeTable
+  type={{
+    redis: {
+      type: 'storage',
+      description:
+        'Used when Redis credentials exist. SET experiments:cron:heartbeat with the payload and a 48-hour expiry (172800 seconds).',
+    },
+    blob: {
+      type: 'storage',
+      description:
+        'Used when Redis is absent but BLOB_READ_WRITE_TOKEN is set. Writes experiments/cron/heartbeat.json (public, no random suffix, overwrite allowed).',
+    },
+    ephemeral: {
+      type: 'storage',
+      description: 'Neither service is configured. The route still returns 200 but nothing is persisted.',
+    },
+  }}
+/>
+
+### GET /api/cron/status
+
+Public, read-only status for the demo. It has no authorization check and never returns `503`.
+
+<TypeTable
+  type={{
+    'Response 200 (Redis configured)': {
+      type: '{ configured: true, storage: "redis", last, schedule, route }',
+      description:
+        'last is { ranAt, path, schedule } from the heartbeat key, or null if no run is stored yet.',
+    },
+    'Response 200 (otherwise)': {
+      type: '{ configured, storage, last: null, schedule, route, note }',
+      description:
+        'configured is true when Blob is available or CRON_SECRET is set. storage is "blob" or "none". last is always null here because the status route does not read the Blob object.',
+    },
+  }}
+/>
+
+## Implementation Details
+
+<Files>
+  <Folder name="apps/experiments/cron-jobs-lab" defaultOpen>
+    <File name="demo.tsx" />
+    <File name="logic.ts" />
+    <File name="logic.test.ts" />
+  </Folder>
+  <Folder name="app/api/cron" defaultOpen>
+    <Folder name="heartbeat" defaultOpen>
+      <File name="route.ts" />
+    </Folder>
+    <Folder name="status" defaultOpen>
+      <File name="route.ts" />
+    </Folder>
+  </Folder>
+  <File name="vercel.json" />
+</Files>
+
+<Steps>
+<Step>
+
+### Register the schedule
+
+Vercel reads cron jobs from `vercel.json` and invokes the path with an HTTP `GET` in production.
+
+```json
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "crons": [
+    {
+      "path": "/api/cron/heartbeat",
+      "schedule": "0 * * * *"
+    }
+  ]
+}
+```
+
+</Step>
+<Step>
+
+### Authorize the caller
+
+```ts
+function authorize(request: Request): boolean {
+  const secret = process.env.CRON_SECRET?.trim();
+  if (!secret) {
+    // On Vercel, Cron invocations include Authorization when CRON_SECRET is set.
+    // Without a secret, allow only Vercel Cron user-agent in production-like hosts.
+    const ua = request.headers.get('user-agent') ?? '';
+    return ua.includes('vercel-cron') || process.env.NODE_ENV !== 'production';
+  }
+  const auth = request.headers.get('authorization');
+  return auth === `Bearer ${secret}`;
+}
+```
+
+</Step>
+<Step>
+
+### Persist to Redis, then Blob
+
+```ts
+const redis = getRedis();
+if (redis) {
+  await redis.set(HEARTBEAT_KEY, payload, { ex: 60 * 60 * 48 });
+  storage = 'redis';
+} else if (getServiceStatus('blob').available) {
+  await put('experiments/cron/heartbeat.json', JSON.stringify(payload, null, 2), {
+    access: 'public',
+    addRandomSuffix: false,
+    allowOverwrite: true,
+    contentType: 'application/json',
+  });
+  storage = 'blob';
+}
+
+return NextResponse.json({ ok: true, ...payload, storage });
+```
+
+</Step>
+<Step>
+
+### Report status
+
+`GET /api/cron/status` reads the last run from Redis when it can, and otherwise returns a note explaining the fallback.
+
+```ts
+const redis = getRedis();
+if (redis) {
+  const last = await redis.get<{ ranAt: string; path: string; schedule: string }>(
+    HEARTBEAT_KEY,
+  );
+  return NextResponse.json({
+    configured: true,
+    storage: 'redis',
+    last,
+    schedule: '0 * * * *',
+    route: '/api/cron/heartbeat',
+  });
+}
+```
+
+</Step>
+<Step>
+
+### Describe the schedule in the UI
+
+`apps/experiments/cron-jobs-lab/logic.ts` maps a few known expressions to readable text and falls back to `Custom cron expression` for anything else.
+
+```ts
+export function describeCronSchedule(expression: string): string {
+  if (expression === '0 * * * *') return 'Once every hour at minute 0';
+  if (expression === '*/5 * * * *') return 'Every 5 minutes';
+  if (expression === '0 0 * * *') return 'Daily at 00:00 UTC';
+  return 'Custom cron expression';
+}
+```
+
+</Step>
+</Steps>
+
+## Use Cases
+
+- Scheduled cleanup of expired records, cache entries, or temporary files.
+- Periodic syncs, digests, and report generation.
+- Health and liveness heartbeats for dashboards and alerts.
+- Warming caches or refreshing data that is read frequently.
+
+## Limitations
+
+- **Run now needs development or matching auth.** The button calls the heartbeat route from the browser with no `Authorization` header and a browser user-agent. In production this returns `401` (whether or not `CRON_SECRET` is set), and the demo shows the error message. The hourly scheduler still works because Vercel Cron sends the right headers.
+- **Cron only runs on Vercel deployments.** `pnpm dev` does not run the scheduler; trigger the route manually with `curl`.
+- **Fixed schedule.** The schedule is a literal in `vercel.json` and in the route payload. The UI describes it but does not edit it.
+- **Status is Redis-centric.** With Blob storage only, the status route reports `last: null` even though the heartbeat object exists.
+- **Ephemeral mode persists nothing.** Without Redis or Blob the handler still returns `200 ok`.
+- **No retries or locking.** The handler does not deduplicate overlapping runs or retry failures. Make real jobs idempotent.
+- **Public status.** `GET /api/cron/status` is unauthenticated, and Blob heartbeats are written with `access: "public"`.
+
+## Use in your project
+
+A protected cron route and its schedule. Set `CRON_SECRET` in your project so Vercel sends the bearer header.
+
+```json
+{
+  "crons": [{ "path": "/api/cron/cleanup", "schedule": "0 0 * * *" }]
+}
+```
+
+```ts
+// app/api/cron/cleanup/route.ts
+import { NextResponse } from 'next/server';
+
+export async function GET(request: Request) {
+  const secret = process.env.CRON_SECRET?.trim();
+  if (!secret || request.headers.get('authorization') !== `Bearer ${secret}`) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  // Do idempotent work here.
+
+  return NextResponse.json({ ok: true, ranAt: new Date().toISOString() });
+}
+```
+
+## Deployment
+
+<ExperimentDeployButton slug="cron-jobs-lab" />
+
+
+Use the one-click Deploy button. It clones the repository, provisions Upstash Redis and a public Blob store, and prompts for `CRON_SECRET`.
+
+<Cards>
+  <Card
+    title="Deploy with Redis, Blob, and CRON_SECRET"
+    href="https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fvercel-experiments%2Fvercel-experiments.com&project-name=vercel-experiments&repository-name=vercel-experiments&stores=%5B%7B%22type%22%3A%22integration%22%2C%22integrationSlug%22%3A%22upstash%22%2C%22productSlug%22%3A%22redis%22%2C%22protocol%22%3A%22storage%22%7D%2C%7B%22type%22%3A%22blob%22%2C%22access%22%3A%22public%22%7D%5D&env=CRON_SECRET&envDescription=Optional+secrets+for+live+demos.+Marketplace+stores+inject+their+own+credentials."
+  >
+    Adds Redis and Blob stores and asks for a `CRON_SECRET` value during setup.
+  </Card>
+</Cards>
+
+After deploying, the schedule from `vercel.json` appears under your project's Cron Jobs settings.
+
+## Local Development
+
+```bash
+pnpm install
+pnpm dev
+```
+
+Cron does not fire locally, so trigger the route yourself. With no `CRON_SECRET` set, any request is accepted outside production:
+
+```bash
+# Run the heartbeat
+curl http://localhost:3000/api/cron/heartbeat
+
+# Check the last run
+curl http://localhost:3000/api/cron/status
+```
+
+With `CRON_SECRET` set in `.env.local`, send the bearer header:
+
+```bash
+curl http://localhost:3000/api/cron/heartbeat \
+  -H "authorization: Bearer $CRON_SECRET"
+```
+
+An unauthorized call returns:
+
+```json
+{ "error": "Unauthorized" }
+```
+
+With neither Redis nor Blob configured, the heartbeat still succeeds but reports `"storage": "ephemeral"`, and `/api/cron/status` returns `storage: "none"` with a `note` explaining that the heartbeat persists to Redis when available.
+
+## Configuration
+
+From `.env.example`:
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `CRON_SECRET` | Recommended in production | Shared secret checked against `Authorization: Bearer <secret>`. Vercel Cron sends it automatically when set. |
+| `UPSTASH_REDIS_REST_URL` | Optional | Preferred heartbeat storage. |
+| `UPSTASH_REDIS_REST_TOKEN` | Optional | Preferred heartbeat storage. |
+| `BLOB_READ_WRITE_TOKEN` | Optional | Fallback heartbeat storage when Redis is absent. |
+
+No variable is strictly required to run the demo: `requiredEnvironmentVariables` is empty because the lab degrades to `ephemeral`.
+
+## Vercel / Next.js Features Used
+
+- **Vercel Cron** configured in `vercel.json`.
+- **Route Handlers** with `GET` and `POST` exports.
+- **Upstash Redis** from the Vercel Marketplace (`SET` with expiry, `GET`).
+- **Vercel Blob** (`put` with `allowOverwrite`) as a fallback store.
+- **Deploy Button** `stores` and `env` parameters (`REDIS_STORE`, `BLOB_STORE` in `lib/vercel/deploy.ts`).
+
+## Next Steps
+
+<Cards>
+  <Card title="Workflows Lab" href="/docs/experiments/workflows-lab">
+    Durable multi-step runs when a schedule alone is not enough.
+  </Card>
+  <Card title="Queues Lab" href="/docs/experiments/queues-lab">
+    Publish background work to a durable topic with retries.
+  </Card>
+  <Card title="Redis Cache Lab" href="/docs/experiments/redis-cache-lab">
+    Explore the Redis commands the heartbeat uses.
+  </Card>
+  <Card title="Blob Storage Lab" href="/docs/experiments/blob-storage-lab">
+    Work with the Blob store used as a fallback.
+  </Card>
+</Cards>

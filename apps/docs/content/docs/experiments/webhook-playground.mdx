@@ -1,0 +1,439 @@
+---
+title: Webhook Playground
+description: Generate a temporary endpoint, capture webhook requests, inspect payloads, and explore retries and idempotency.
+---
+
+<ExperimentEmbed slug="webhook-playground" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+The Webhook Playground gives you a throwaway HTTP endpoint (`/api/webhooks/{sessionId}`), captures every request sent to it, and lets you inspect the method, headers, query string, and body in the browser. It is built with Next.js Route Handlers and, when available, an Upstash Redis session store provisioned from the Vercel Marketplace. Without Redis it falls back to an in-memory `Map`, so the demo always works but sessions are only durable when Redis is configured.
+
+It teaches the parts of webhook development that are easy to get wrong: how to expose a receiver you can safely point a provider at, how to avoid persisting secrets from captured headers, why you need size and rate limits on any public ingest endpoint, and how replaying a captured delivery relates to provider retries and idempotency.
+
+## Features
+
+- **Temporary endpoints** – `POST /api/webhooks/session` creates a UUID session and returns a ready-to-copy URL. Sessions live for 30 minutes and the TTL is refreshed on every captured request.
+- **Capture any write method** – `POST`, `PUT`, `PATCH`, and `DELETE` to the session URL are recorded with method, headers, query parameters, body, and a timestamp.
+- **Live inspection** – the demo polls the session every 3 seconds, lists captures newest-first, and shows the selected request as JSON.
+- **Sensitive header redaction** – `authorization`, `cookie`, `set-cookie`, `x-api-key`, `x-auth-token`, and any header whose name contains `secret` or `password` are replaced with `[REDACTED]` before storage.
+- **Guard rails** – 64 KiB maximum body, 100 captured requests per session, and 120 requests per minute per session.
+- **Replay** – a replay endpoint returns a captured request's stored payload so you can re-send it and observe how a handler behaves on a duplicate delivery.
+- **Two storage backends** – Upstash Redis (reported as `redis`) when credentials exist, otherwise in-memory (`memory`). The response from session creation tells you which one is active.
+- **Mock local mode** – a checkbox in the demo toolbar keeps everything in the browser using `createMockCapture`, with no server calls.
+
+## API Reference
+
+All routes are Next.js Route Handlers under `app/api/webhooks/`. Session IDs are random UUIDs generated with `crypto.randomUUID()`.
+
+### `POST /api/webhooks/session`
+
+Create a new capture session. No request body.
+
+<TypeTable
+  type={{
+    sessionId: {
+      description: "UUID of the new session. Used in all other webhook routes.",
+      type: "string",
+    },
+    endpoint: {
+      description: "Absolute URL to send webhooks to, built from the request origin: `{origin}/api/webhooks/{sessionId}`.",
+      type: "string",
+    },
+    expiresAt: {
+      description: "Expiry timestamp in epoch milliseconds.",
+      type: "number",
+    },
+    ttlMs: {
+      description: "Session lifetime in milliseconds (1,800,000 = 30 minutes).",
+      type: "number",
+    },
+    backend: {
+      description: "Which store is holding the session.",
+      type: "'redis' | 'memory'",
+    },
+  }}
+/>
+
+```json
+{
+  "sessionId": "4f1c3b0e-6c5d-4a2b-9d7e-2f0e9c7a1b11",
+  "endpoint": "http://localhost:3000/api/webhooks/4f1c3b0e-6c5d-4a2b-9d7e-2f0e9c7a1b11",
+  "expiresAt": 1791700200000,
+  "ttlMs": 1800000,
+  "backend": "memory"
+}
+```
+
+### `POST | PUT | PATCH | DELETE /api/webhooks/{sessionId}`
+
+Capture an inbound request. The raw body is read as text; any content type is accepted.
+
+<TypeTable
+  type={{
+    sessionId: {
+      description: "Path parameter. The session UUID returned by `/api/webhooks/session`.",
+      type: "string",
+      required: true,
+    },
+    "query string": {
+      description: "Any query parameters are captured as a flat `Record<string, string>` (repeated keys keep the last value).",
+      type: "string",
+    },
+    "request headers": {
+      description: "All headers are captured, then sensitive ones are redacted.",
+      type: "Headers",
+    },
+    "request body": {
+      description: "Optional. Maximum 64 KiB (65,536 bytes) of UTF-8 text. An empty body is stored as `null`.",
+      type: "string",
+    },
+  }}
+/>
+
+Success returns `202 Accepted`:
+
+```json
+{
+  "ok": true,
+  "id": "0b8f4c0a-3a5e-4e8e-bd34-7a9d1f6f77c2",
+  "receivedAt": 1791698412345
+}
+```
+
+Errors are returned as `{ "error": "<code>" }`:
+
+| Status | `error` | Cause |
+| --- | --- | --- |
+| `404` | `not_found` | Session does not exist or has expired |
+| `413` | `body_too_large` | Body exceeds 64 KiB |
+| `429` | `rate_limited` | More than 120 captures in the current 60-second window for this session |
+| `409` | `max_requests` | The session already holds 100 captured requests |
+
+### `GET /api/webhooks/{sessionId}`
+
+Return the session and its captured requests (newest first).
+
+```json
+{
+  "sessionId": "4f1c3b0e-6c5d-4a2b-9d7e-2f0e9c7a1b11",
+  "createdAt": 1791698400000,
+  "expiresAt": 1791700212345,
+  "requests": [
+    {
+      "id": "0b8f4c0a-3a5e-4e8e-bd34-7a9d1f6f77c2",
+      "method": "POST",
+      "headers": {
+        "content-type": "application/json",
+        "authorization": "[REDACTED]"
+      },
+      "query": { "source": "curl" },
+      "body": "{\"event\":\"ping\"}",
+      "bodyTruncated": false,
+      "receivedAt": 1791698412345
+    }
+  ]
+}
+```
+
+A missing or expired session returns `404` with `{ "error": "Session not found or expired" }`.
+
+### `POST /api/webhooks/{sessionId}/replay`
+
+Look up a captured request and return the data you need to re-send it. The route does **not** send anything itself; the demo UI performs the second request.
+
+<TypeTable
+  type={{
+    requestId: {
+      description: "UUID of a captured request in this session (validated with Zod `z.string().uuid()`).",
+      type: "string",
+      required: true,
+    },
+  }}
+/>
+
+```json
+{
+  "replay": {
+    "method": "POST",
+    "headers": { "content-type": "application/json", "authorization": "[REDACTED]" },
+    "query": { "source": "curl" },
+    "body": "{\"event\":\"ping\"}"
+  },
+  "hint": "Re-send this payload to the session endpoint; sensitive headers were redacted at capture time."
+}
+```
+
+| Status | Body | Cause |
+| --- | --- | --- |
+| `400` | `{ "error": "Invalid JSON body" }` | Request body is not valid JSON |
+| `400` | `{ "error": "requestId must be a UUID" }` | Schema validation failed |
+| `404` | `{ "error": "Session not found or expired" }` | Unknown or expired session |
+| `404` | `{ "error": "Request not found" }` | No capture with that ID in the session |
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### Create a session
+
+`createSession()` in `lib/webhooks/store.ts` builds a `WebhookSession` with a UUID, timestamps, an empty request list, and a per-session rate-limit counter. If `getRedis()` returns a client the session is written to Redis under `webhook:session:{id}` with `ex: 1800`; otherwise it is stored in a module-level `Map` after purging expired entries.
+
+```ts
+const session: WebhookSession = {
+  id: crypto.randomUUID(),
+  createdAt: now,
+  expiresAt: now + WEBHOOK_SESSION_TTL_MS,
+  requests: [],
+  rateLimit: { windowStart: now, count: 0 },
+};
+await redisSaveSession(session);
+```
+
+</Step>
+<Step>
+
+### Receive and read the body
+
+Each write-method handler delegates to `handleCapture`, which reads the body as text and normalises an empty string to `null`.
+
+```ts
+async function handleCapture(request: NextRequest, sessionId: string) {
+  let bodyText: string | null = null;
+  try {
+    bodyText = await request.text();
+    if (bodyText.length === 0) bodyText = null;
+  } catch {
+    bodyText = null;
+  }
+
+  const result = await captureRequest(sessionId, {
+    method: request.method,
+    headers: request.headers,
+    searchParams: request.nextUrl.searchParams,
+    bodyText,
+  });
+  // map result.code -> 404 / 429 / 413 / 409, otherwise 202
+}
+```
+
+</Step>
+<Step>
+
+### Enforce limits
+
+`captureRequest` checks, in order: session exists, per-session rate limit (fixed 60-second window, 120 requests), maximum stored requests (100), and body size in bytes (64 KiB).
+
+```ts
+export const WEBHOOK_MAX_BODY_BYTES = 64 * 1024;
+export const WEBHOOK_MAX_REQUESTS_PER_SESSION = 100;
+export const WEBHOOK_SESSION_TTL_MS = 30 * 60 * 1000;
+export const WEBHOOK_RATE_LIMIT_WINDOW_MS = 60 * 1000;
+export const WEBHOOK_RATE_LIMIT_MAX = 120;
+```
+
+</Step>
+<Step>
+
+### Redact and store
+
+Headers are flattened into a record and passed through `redactSensitiveHeaders` from `apps/experiments/webhook-playground/logic.ts`. The new capture is prepended to the session, the TTL is extended, and the whole session is saved back to Redis when it is the active backend.
+
+```ts
+const SENSITIVE_HEADER_PATTERN =
+  /^(authorization|cookie|set-cookie|x-api-key|x-auth-token|.*secret.*|.*password.*)$/i;
+
+export function redactSensitiveHeaders(
+  headers: Record<string, string>,
+): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const [key, value] of Object.entries(headers)) {
+    result[key] = SENSITIVE_HEADER_PATTERN.test(key) ? '[REDACTED]' : value;
+  }
+  return result;
+}
+```
+
+</Step>
+<Step>
+
+### Poll and replay
+
+The client polls `GET /api/webhooks/{sessionId}` every 3 seconds. Replay calls the replay route, then sends a new request to the endpoint using the returned `method` and `body` with a `content-type: application/json` header. The replayed delivery is captured like any other request, which lets you observe how a handler (or your own idempotency logic) deals with a duplicate.
+
+</Step>
+</Steps>
+
+## Use Cases
+
+- Point a payment, Git host, or CMS webhook at a temporary URL to see exactly what it sends before writing a handler.
+- Compare the shape of `POST`, `PUT`, `PATCH`, and `DELETE` deliveries and the headers a provider attaches.
+- Demonstrate retry behaviour: replay the same payload twice and discuss why handlers should be idempotent (see [Webhook Signature Verifier](/docs/experiments/webhook-signature-verifier) for signature and replay-window checks).
+- Learn how to build a bounded, public ingest endpoint: TTL, body limits, rate limits, and redaction.
+- Practise the in-memory-versus-Redis trade-off on serverless functions.
+
+## Limitations
+
+Security notes for this experiment:
+
+- Sessions expire after a short TTL (30 minutes, refreshed on activity).
+- Sensitive headers are redacted.
+- Request bodies are size-limited and not retained indefinitely.
+- Uses Redis when provisioned; otherwise in-memory (resets on cold start).
+
+Additional limits that come from the code:
+
+- **Only headers are redacted.** Query strings and bodies are stored as received, so do not send production secrets or personal data.
+- **The session ID is the only credential.** Anyone who knows the UUID can read captures via `GET /api/webhooks/{sessionId}` and add more via the write methods. There is no authentication.
+- **Replay does not re-send original headers.** Redacted headers cannot be restored, and the demo UI re-sends only the method and body with a JSON content type.
+- **In-memory mode is per instance.** Without Redis, different serverless instances do not share sessions, so a capture may land on an instance that does not know the session (`404`), and everything is lost on cold start.
+- **Redis writes are read-modify-write.** The whole session object is fetched and saved on each capture, so heavily concurrent deliveries to one session can overwrite each other. This is acceptable for a demo but not for a production ingest pipeline.
+- **`bodyTruncated` is defensive.** Bodies over 64 KiB are rejected with `413` before truncation, so stored captures are effectively always complete.
+- **Not a delivery guarantee.** The endpoint always answers `202` on success; it does not simulate provider-specific retry schedules.
+
+## Use in your project
+
+A minimal, bounded capture store you can adapt for a route handler. It mirrors the experiment's redaction, size limit, and TTL logic using an in-memory `Map`.
+
+```ts
+// app/api/capture/[id]/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+
+const SENSITIVE =
+  /^(authorization|cookie|set-cookie|x-api-key|x-auth-token|.*secret.*|.*password.*)$/i;
+const MAX_BODY_BYTES = 64 * 1024;
+const MAX_REQUESTS = 100;
+const TTL_MS = 30 * 60 * 1000;
+
+type Capture = {
+  id: string;
+  method: string;
+  headers: Record<string, string>;
+  query: Record<string, string>;
+  body: string | null;
+  receivedAt: number;
+};
+
+const sessions = new Map<string, { expiresAt: number; requests: Capture[] }>();
+
+function redact(headers: Headers) {
+  const out: Record<string, string> = {};
+  headers.forEach((value, key) => {
+    out[key] = SENSITIVE.test(key) ? '[REDACTED]' : value;
+  });
+  return out;
+}
+
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id } = await params;
+  const session = sessions.get(id) ?? { expiresAt: Date.now() + TTL_MS, requests: [] };
+
+  if (session.expiresAt <= Date.now()) {
+    sessions.delete(id);
+    return NextResponse.json({ error: 'not_found' }, { status: 404 });
+  }
+
+  const text = await request.text();
+  if (new TextEncoder().encode(text).length > MAX_BODY_BYTES) {
+    return NextResponse.json({ error: 'body_too_large' }, { status: 413 });
+  }
+  if (session.requests.length >= MAX_REQUESTS) {
+    return NextResponse.json({ error: 'max_requests' }, { status: 409 });
+  }
+
+  const capture: Capture = {
+    id: crypto.randomUUID(),
+    method: request.method,
+    headers: redact(request.headers),
+    query: Object.fromEntries(request.nextUrl.searchParams),
+    body: text || null,
+    receivedAt: Date.now(),
+  };
+
+  session.requests.unshift(capture);
+  session.expiresAt = Date.now() + TTL_MS;
+  sessions.set(id, session);
+
+  return NextResponse.json({ ok: true, id: capture.id }, { status: 202 });
+}
+```
+
+For anything beyond a demo, replace the `Map` with a shared store such as Upstash Redis and add authentication.
+
+## Deployment
+
+<ExperimentDeployButton slug="webhook-playground" />
+
+
+The experiment's deploy button provisions an **Upstash Redis** store from the Vercel Marketplace, which injects `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`. Redis is optional: if you skip it, the playground still works with in-memory sessions.
+
+Use the Deploy button on this experiment page. Required variables are listed in the Configuration section below.
+
+## Local Development
+
+```bash
+pnpm install
+pnpm dev
+```
+
+Open the experiment page, click **Create webhook session**, then try the API directly:
+
+```bash
+# 1. Create a session and note the sessionId / endpoint
+curl -s -X POST http://localhost:3000/api/webhooks/session
+
+# 2. Send a webhook (replace SESSION_ID)
+curl -s -X POST "http://localhost:3000/api/webhooks/SESSION_ID?source=curl" \
+  -H "content-type: application/json" \
+  -H "authorization: Bearer super-secret" \
+  -d '{"event":"order.created","id":"evt_123"}'
+
+# 3. List captures (authorization is shown as [REDACTED])
+curl -s http://localhost:3000/api/webhooks/SESSION_ID
+
+# 4. Fetch replay data for a captured request (replace REQUEST_ID)
+curl -s -X POST http://localhost:3000/api/webhooks/SESSION_ID/replay \
+  -H "content-type: application/json" \
+  -d '{"requestId":"REQUEST_ID"}'
+```
+
+On `localhost` the endpoint is not reachable from the public internet. To receive real provider webhooks, use a tunnelling tool or a Preview/Production deployment.
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `UPSTASH_REDIS_REST_URL` | No | Upstash Redis REST URL. Enables the `redis` backend. |
+| `UPSTASH_REDIS_REST_TOKEN` | No | Upstash Redis REST token. |
+| `KV_REST_API_URL` | No | Legacy Vercel KV REST URL, accepted as a fallback by `getRedis()`. |
+| `KV_REST_API_TOKEN` | No | Legacy Vercel KV REST token, accepted as a fallback. |
+
+Both a URL and a token must be present for Redis to be used. The limits (TTL, 64 KiB body, 100 requests, 120 requests/minute) are constants in `lib/webhooks/store.ts`, not environment variables.
+
+## Vercel / Next.js Features Used
+
+- [Route Handlers](https://nextjs.org/docs/app/api-reference/file-conventions/route) with dynamic segments (`[sessionId]`) and async `params`.
+- [`NextRequest`](https://nextjs.org/docs/app/api-reference/functions/next-request) for `nextUrl.searchParams` and header access.
+- [Vercel Marketplace](https://vercel.com/marketplace) Upstash Redis integration for durable sessions.
+- [Vercel Functions](https://vercel.com/docs/functions), where module-level memory is per instance and cleared on cold start.
+- Zod validation for the replay request body.
+
+## Next Steps
+
+<Cards>
+  <Card title="Webhook Signature Verifier" href="/docs/experiments/webhook-signature-verifier">
+    Practise HMAC signatures, timestamp tolerance, and replay prevention.
+  </Card>
+  <Card title="Redis Cache Lab" href="/docs/experiments/redis-cache-lab">
+    Explore the Upstash Redis client this experiment uses for sessions.
+  </Card>
+  <Card title="Route Handlers" href="https://nextjs.org/docs/app/api-reference/file-conventions/route">
+    Next.js reference for the `route.ts` file convention.
+  </Card>
+</Cards>

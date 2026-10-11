@@ -1,0 +1,108 @@
+---
+title: Inbox Digest Cron
+description: Seed inbox messages in Redis or memory, then a Cron-style Route Handler summarizes a digest (AI or deterministic).
+---
+
+<ExperimentEmbed slug="inbox-digest-cron" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+Inbox Digest Cron seeds sample messages into Redis (or process memory), then a Cron-style Route Handler builds a digest. With AI configured it summarizes; otherwise it deterministically joins subjects/bodies. Cron invocations check `CRON_SECRET`.
+
+## Features
+
+- **Seed inbox** – sample partner/ops messages.
+- **Cron digest** – `vercel.json` schedule hits `/api/digest`.
+- **AI or deterministic** – never invents messages when AI is missing.
+- **Redis or memory** – honest UI notes when Redis is absent.
+
+## Server Reference
+
+### `POST /api/seed`
+
+Seeds sample messages.
+
+### `GET /api/digest?run=1`
+
+Runs a digest (authorize with `Bearer CRON_SECRET` in production). Without `run=1`, returns the last digest.
+
+### `POST /api/digest`
+
+Cron-friendly run (same auth rules).
+
+| Status | Cause |
+| --- | --- |
+| `401` | Missing/invalid `CRON_SECRET` |
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### Seed
+
+Write message array to Redis key or module memory.
+
+</Step>
+<Step>
+
+### Digest
+
+`generateText` when AI is available; else `deterministicDigest`.
+
+</Step>
+</Steps>
+
+## Use Cases
+
+- Learn Cron + Redis composition.
+- Prototype inbox digests before production queues.
+
+## Limitations
+
+- Demo-scale message caps.
+- Deterministic mode is a join, not a model summary.
+
+## Use in your project
+
+Copy handlers from `apps/experiments/inbox-digest-cron/`.
+
+## Deployment
+
+<ExperimentDeployButton slug="inbox-digest-cron" />
+
+## Local Development
+
+```bash
+cd apps/experiments/inbox-digest-cron
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `CRON_SECRET` | Prod | Authorize cron |
+| `AI_GATEWAY_API_KEY` | No | AI digest |
+| `UPSTASH_REDIS_REST_URL` / `TOKEN` | No | Durable messages |
+
+## Vercel / Next.js Features Used
+
+- Vercel Cron
+- Upstash Redis
+- AI SDK `generateText`
+- Route Handlers
+
+## Next Steps
+
+<Cards>
+  <Card title="Cron Jobs Lab" href="/docs/experiments/cron-jobs-lab">
+    Heartbeat cron patterns.
+  </Card>
+  <Card title="RSS Digest Lab" href="/docs/experiments/rss-digest-lab">
+    Feed - digest composition.
+  </Card>
+</Cards>

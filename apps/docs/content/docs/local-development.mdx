@@ -1,0 +1,35 @@
+---
+title: Local development
+description: Day-to-day workflow for working on the platform.
+---
+
+## Scripts
+
+From the monorepo root (or `apps/docs`):
+
+| Script | Purpose |
+| --- | --- |
+| `pnpm dev` | Start the docs hub Next.js dev server |
+| `pnpm build` | Production build for the hub |
+| `pnpm start` | Serve the production build |
+| `pnpm lint` | ESLint |
+| `pnpm types:check` | Generate types and run `tsc` |
+| `pnpm test` | Vitest unit tests |
+| `pnpm test:e2e` | Playwright end-to-end tests |
+
+To run a single experiment: `cd apps/experiments/<slug> && pnpm install && pnpm dev`.
+
+## Project layout
+
+- `apps/docs/app/` - hub routes and layouts (`/api/search`, `/api/mcp` only)
+- `apps/docs/components/` - shared UI
+- `apps/docs/content/docs/` - Fumadocs MDX
+- `apps/docs/lib/experiments/` - registry and search helpers
+- `apps/experiments/<slug>/` - standalone experiment apps (demos + APIs)
+
+## Tips
+
+- Prefer server components unless interactivity requires a client boundary.
+- Keep algorithm logic in each experiment's `logic.ts` so Vitest can cover it without rendering.
+- Unpublished experiments must set `published: false` in the registry.
+- Experiment secrets belong in the experiment app's `.env.local`, not the hub.

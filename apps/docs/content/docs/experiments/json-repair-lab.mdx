@@ -1,0 +1,83 @@
+---
+title: JSON Repair Lab
+description: Paste broken JSON - heuristic (and optional AI) repair with a line-by-line diff.
+---
+
+<ExperimentEmbed slug="json-repair-lab" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+Repair broken JSON with deterministic heuristics first, optional AI fallback, and a simple line diff.
+
+## Features
+
+- Standalone Next.js app under `apps/experiments/json-repair-lab/`.
+- Honest degradation when optional services are missing.
+- Unit-tested helpers in `logic.ts`.
+
+## Server Reference
+
+### `POST /api/repair`
+
+```
+{ "json": "{...}" }
+```
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### Run the demo
+
+Use the embedded playground or `pnpm dev` in the experiment app.
+
+</Step>
+<Step>
+
+### Inspect the handlers
+
+Copy Route Handlers from `apps/experiments/json-repair-lab/` into your project.
+
+</Step>
+</Steps>
+
+## Limitations
+
+- Educational demo — not a production-hardened product.
+- Inputs are length-capped.
+
+## Use in your project
+
+Copy the experiment folder or individual Route Handlers.
+
+## Deployment
+
+<ExperimentDeployButton slug="json-repair-lab" />
+
+## Local Development
+
+```bash
+cd apps/experiments/json-repair-lab
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `AI_GATEWAY_API_KEY` | Yes | Lab configuration |
+
+## Vercel / Next.js Features Used
+
+- AI SDK, AI Gateway, Zod
+
+## Next Steps
+
+<Cards>
+  <Card title="schema-from-sample-lab" href="/docs/experiments/schema-from-sample-lab">Related lab.</Card>
+  <Card title="api-mock-from-openapi" href="/docs/experiments/api-mock-from-openapi">Related lab.</Card>
+</Cards>

@@ -1,0 +1,107 @@
+---
+title: Slide Deck Summarizer
+description: Paste or upload a PDF/text deck - streamText per-slide bullets plus an executive brief.
+---
+
+<ExperimentEmbed slug="slide-deck-summarizer" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+Slide Deck Summarizer accepts pasted text or `.txt`/`.md`/`.pdf` uploads (`unpdf` for PDFs), splits slides on delimiters, and streams a per-slide bullet summary plus executive brief via `streamText`. Missing AI keys return `503`.
+
+## Features
+
+- **Paste or PDF** – text extract with unpdf.
+- **Slide splitting** – `---` / “Slide N” / paragraph heuristics.
+- **streamText summary** – bullets + executive brief.
+- **Cancel** – abort mid-stream.
+- **Honest `503`** when AI is unavailable.
+
+## Server Reference
+
+### `POST /api/summarize`
+
+JSON `{ "text": "..." }` or multipart with `text` + optional `file`.
+
+#### Success (`200`)
+
+Plain text token stream (`text/plain`) with `x-slide-count` header.
+
+| Status | Cause |
+| --- | --- |
+| `503` | No AI provider |
+| `400` | Empty source / PDF parse failure |
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### Extract + splitSlides
+
+`logic.ts` splits before prompting.
+
+</Step>
+<Step>
+
+### streamText
+
+`toTextStreamResponse` for progressive UI.
+
+</Step>
+</Steps>
+
+## Use Cases
+
+- Learn composition patterns for this lab’s stack.
+- Prototype before wiring production auth and quotas.
+- Deploy the standalone app as a reference implementation.
+
+## Limitations
+
+- Demo-scale caps on input size and output counts.
+- No auth / rate limits on public deploys.
+- Model quality depends on input clarity.
+
+## Use in your project
+
+Copy the Route Handler and `logic.ts` helpers from `apps/experiments/slide-deck-summarizer/`. Wire your own persistence and auth as needed.
+
+## Deployment
+
+<ExperimentDeployButton slug="slide-deck-summarizer" />
+
+## Local Development
+
+```bash
+cd apps/experiments/slide-deck-summarizer
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `AI_GATEWAY_API_KEY` | Yes (or `OPENAI_API_KEY`) | Preferred provider |
+| `OPENAI_API_KEY` | No | Fallback |
+| `AI_MODEL` | No | Model override |
+
+## Vercel / Next.js Features Used
+
+- AI SDK `streamText`
+- unpdf
+- Route Handlers
+
+## Next Steps
+
+<Cards>
+  <Card title="PDF Quiz Lab" href="/docs/experiments/pdf-quiz-lab">
+    PDF - MCQ generateObject.
+  </Card>
+  <Card title="URL Brief Lab" href="/docs/experiments/url-brief-lab">
+    Streamed summary UI.
+  </Card>
+</Cards>

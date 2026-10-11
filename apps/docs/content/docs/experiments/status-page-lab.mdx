@@ -1,0 +1,107 @@
+---
+title: Status Page Lab
+description: Cron or manual synthetic checks hit a URL, store history in Redis or memory, and render a public status UI.
+---
+
+<ExperimentEmbed slug="status-page-lab" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+Status Page Lab runs synthetic HTTP checks (Cron or manual), stores history in Redis or memory, and exposes a public status summary (operational / degraded / down).
+
+## Features
+
+- **Synthetic checks** – timeout-capped GET to a configured URL.
+- **History** – Redis or process memory with uptime %.
+- **Public status UI** – overall status derived from recent checks.
+- **Cron auth** – `CRON_SECRET` Bearer in production.
+
+## API Reference
+
+### `POST /api/check` / `GET /api/check`
+
+Runs a check (`manual=1` for UI; Cron uses auth).
+
+### `GET /api/status`
+
+```json
+{ "status": "operational", "uptimePercent": 100, "history": [] }
+```
+
+| Status | Cause |
+| --- | --- |
+| `401` | Unauthorized cron |
+| `400` | Invalid URL |
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### Check
+
+Fetch target URL; record latency + status.
+
+</Step>
+<Step>
+
+### Summarize
+
+`overallFromHistory` + `uptimePercent` for the UI.
+
+</Step>
+</Steps>
+
+## Use Cases
+
+- Learn Cron + Redis monitoring composition.
+- Prototype a minimal status page.
+
+## Limitations
+
+- Single URL; not multi-region probes.
+- History capped (~40 samples).
+
+## Use in your project
+
+Copy handlers from `apps/experiments/status-page-lab/`.
+
+## Deployment
+
+<ExperimentDeployButton slug="status-page-lab" />
+
+## Local Development
+
+```bash
+cd apps/experiments/status-page-lab
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `CRON_SECRET` | Prod | Authorize cron |
+| `STATUS_CHECK_URL` | No | Default target |
+| `UPSTASH_REDIS_REST_URL` / `TOKEN` | No | Durable history |
+
+## Vercel / Next.js Features Used
+
+- Vercel Cron
+- Upstash Redis
+- Route Handlers
+- Zod
+
+## Next Steps
+
+<Cards>
+  <Card title="Cron Jobs Lab" href="/docs/experiments/cron-jobs-lab">
+    Heartbeat schedules.
+  </Card>
+  <Card title="Redis Cache Lab" href="/docs/experiments/redis-cache-lab">
+    Upstash primitives.
+  </Card>
+</Cards>

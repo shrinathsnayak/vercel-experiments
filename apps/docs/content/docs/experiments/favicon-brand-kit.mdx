@@ -1,0 +1,97 @@
+---
+title: Favicon Brand Kit
+description: Pick a brand color + letter - ImageResponse icon set (16/32/180/512) for favicons and PWA.
+---
+
+<ExperimentEmbed slug="favicon-brand-kit" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+Favicon Brand Kit is a Wave 3 Batch H composition lab. The UI builds icon URLs in `logic.ts`; `GET /api/icon` renders each size with `ImageResponse`.
+
+## Features
+
+- Hex color + letter
+- Multiple icon sizes
+- Pure ImageResponse
+
+## UI Reference
+
+| Control | Behavior |
+| --- | --- |
+| Brand color | Validated 6-digit hex (`normalizeHex`) |
+| Letter | First character, uppercased |
+| Generate kit | Builds preview URLs via `kitUrls` |
+
+URL helpers live in the client - there is no JSON kit API.
+
+## API Reference
+
+### `GET /api/icon`
+
+Query: `color`, `letter`, `size` (one of 16 / 32 / 180 / 512). Returns an `ImageResponse` PNG.
+
+| Status | Cause |
+| --- | --- |
+| `200` | Icon rendered |
+| `400` | Invalid color, letter, or size |
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### Validate in the UI
+
+`normalizeHex` / `normalizeLetter` run in the demo before preview URLs are built.
+
+</Step>
+<Step>
+
+### Render with ImageResponse
+
+`GET /api/icon` reads query params and returns a sized glyph on the brand background.
+
+</Step>
+</Steps>
+
+## Limitations
+
+- Single glyph only.
+- No SVG export.
+- System font glyph.
+
+## Use in your project
+
+Copy `app/api/icon/route.tsx` and `logic.ts` from `apps/experiments/favicon-brand-kit/`.
+
+## Deployment
+
+<ExperimentDeployButton slug="favicon-brand-kit" />
+
+## Local Development
+
+```bash
+cd apps/experiments/favicon-brand-kit
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `—` | — | No secrets required |
+
+## Next Steps
+
+<Cards>
+  <Card title="Thumbnail Factory" href="/docs/experiments/thumbnail-factory">
+    Related experiment.
+  </Card>
+  <Card title="Og Image Studio" href="/docs/experiments/og-image-studio">
+    Related experiment.
+  </Card>
+</Cards>

@@ -1,0 +1,135 @@
+---
+title: Workflows Lab
+description: Start a durable multi-step order workflow with use workflow, use step, and sleep on the Workflow SDK.
+---
+
+<ExperimentEmbed slug="workflows-lab" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+The Workflows Lab shows how [Vercel Workflows](https://vercel.com/docs/workflows) turn ordinary async functions into durable runs. It uses the open-source [Workflow SDK](https://useworkflow.dev) (`workflow` package): `'use workflow'` for the orchestrator, `'use step'` for retried side effects, and `sleep()` for pauses that consume no compute. A Route Handler calls `start()` from `workflow/api` so the HTTP response can return while the run continues.
+
+## Features
+
+- **Real Workflow SDK wiring.** `next.config.mjs` wraps the Next config with `withWorkflow()`.
+- **Demo order workflow.** `processDemoOrder` reserves inventory, charges payment, sleeps 2 seconds, then sends confirmation.
+- **Start API.** `POST /api/workflows/start` queues a run and returns `runId` when the platform is available.
+- **Honest degradation.** Without a linked Vercel project the route returns `503` with setup requirements - it does not fake a run id.
+- **Educational timeline.** The UI also shows a client-side step timeline so you can learn the mental model offline.
+
+## API Reference
+
+### `POST /api/workflows/start`
+
+Starts `processDemoOrder` with an order id.
+
+<TypeTable
+  type={{
+    orderId: {
+      type: 'string',
+      description: 'Alphanumeric order id (1–64 chars). Default order_demo.',
+    },
+    'Response 200': {
+      type: '{ ok: true, mode: "vercel-workflows", runId, orderId, note }',
+      description: 'Workflow accepted by start(). Inspect with npx workflow web.',
+    },
+    'Response 503': {
+      type: '{ ok: false, mode: "unavailable", setup, requirements }',
+      description: 'SDK or OIDC/platform unavailable - use the educational timeline.',
+    },
+  }}
+/>
+
+```bash
+curl -X POST http://localhost:3010/api/workflows/start \
+  -H 'content-type: application/json' \
+  -d '{"orderId":"order_demo"}'
+```
+
+## Implementation Details
+
+The workflow lives in `apps/experiments/workflows-lab/workflows/demo-order.ts`:
+
+```ts title="apps/experiments/workflows-lab/workflows/demo-order.ts"
+export async function processDemoOrder(orderId: string) {
+  'use workflow';
+  await reserveInventory(orderId, steps);
+  await chargePayment(orderId, steps);
+  await sleep('2s');
+  await sendConfirmation(orderId, steps);
+  return { orderId, status: 'confirmed', steps };
+}
+```
+
+Each helper is a `'use step'` function. Steps get automatic retries for thrown errors; the workflow function coordinates them and may pause with `sleep` without holding a warm function.
+
+`withWorkflow` from `workflow/next` generates the internal `/.well-known/workflow/` routes the runtime needs.
+
+## Use Cases
+
+- Multi-step onboarding or order pipelines that must survive deploys
+- Agent tool loops that pause for human approval or external webhooks
+- Delayed follow-ups (hours/days) without cron polling every minute
+
+## Limitations
+
+- Live runs need Vercel (or `vercel dev` with linked OIDC). Plain `next dev` without credentials returns `503`.
+- The on-page timeline is educational only - authoritative history is in Observability - Workflows / `npx workflow web`.
+- Sleep in the demo is `2s` so you can watch it finish; production sleeps can be much longer.
+
+## Use in your project
+
+1. `pnpm add workflow`
+2. Wrap `next.config` with `withWorkflow()`
+3. Export a `'use workflow'` function and call `start(fn, [args])` from a Route Handler
+
+## Deployment
+
+<ExperimentDeployButton slug="workflows-lab" />
+
+Deploy the standalone app, trigger `/api/workflows/start`, then open **Observability - Workflows** in the project dashboard.
+
+## Local Development
+
+```bash
+cd apps/experiments/workflows-lab
+pnpm install
+vercel link && vercel env pull   # OIDC for live start()
+pnpm dev
+```
+
+Open http://localhost:3010. Unit tests:
+
+```bash
+pnpm vitest run ../experiments/workflows-lab
+```
+
+## Configuration
+
+| Variable / setup | Required | Notes |
+| --- | --- | --- |
+| Vercel OIDC (`vercel env pull`) | For live `start()` | Automatic on Vercel deployments |
+| `withWorkflow(nextConfig)` | Yes | Already set in this experiment |
+
+## Vercel / Next.js Features Used
+
+- [Vercel Workflows](https://vercel.com/docs/workflows)
+- [Workflow SDK](https://useworkflow.dev/docs/getting-started/next) (`'use workflow'`, `'use step'`, `sleep`, `start`)
+- [Vercel Queues](https://vercel.com/docs/queues) (underlying durable dispatch)
+- Next.js Route Handlers
+
+## Next Steps
+
+<Cards>
+  <Card title="Queues Lab" href="/docs/experiments/queues-lab">
+    Work with the lower-level publish/consume primitive under Workflows.
+  </Card>
+  <Card title="Cron Jobs Lab" href="/docs/experiments/cron-jobs-lab">
+    Schedule heartbeats when you need time-based triggers instead of durable steps.
+  </Card>
+  <Card title="Workflow concepts" href="https://vercel.com/docs/workflows/concepts">
+    Official guide to workflows, steps, sleep, and hooks.
+  </Card>
+</Cards>

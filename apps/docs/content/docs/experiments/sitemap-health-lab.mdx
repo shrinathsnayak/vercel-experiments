@@ -1,0 +1,102 @@
+---
+title: Sitemap Health Lab
+description: Fetch a sitemap URL, sample <loc> links, and check status codes with a rate-limited delay between requests.
+---
+
+<ExperimentEmbed slug="sitemap-health-lab" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+Sitemap Health Lab fetches a sitemap XML, extracts up to N `<loc>` URLs, then checks each status with a minimum delay between requests. No AI provider required.
+
+## Features
+
+- **Sitemap loc extraction** – http(s) only
+- **Rate-limited checks** – `MIN_DELAY_MS` between link fetches
+- **Summary stats** – ok / failed / avgMs
+
+## API Reference
+
+### `POST /api/health`
+
+```json
+{ "sitemapUrl": "https://vercel.com/sitemap.xml", "sample": 8 }
+```
+
+| Status | Cause |
+| --- | --- |
+| `400` | Validation / upstream / empty input |
+
+
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### Pure helpers in `logic.ts`
+
+Caps, parsers, and clamps live in the experiment folder and are covered by `logic.test.ts`.
+
+</Step>
+<Step>
+
+### Route Handler
+
+`POST /api/health` validates input, applies fetch/parse limits where relevant, then returns JSON.
+
+</Step>
+</Steps>
+
+## Use Cases
+
+- Learn composition patterns for this lab’s stack.
+- Prototype before wiring production auth and quotas.
+- Deploy the standalone app as a reference implementation.
+
+## Limitations
+
+- Demo-scale caps on input size and output counts.
+- No auth / rate limits on public deploys.
+- Treat outputs as drafts, not production truth.
+
+## Use in your project
+
+Copy the Route Handler and `logic.ts` helpers from `apps/experiments/sitemap-health-lab/`. Wire your own persistence and auth as needed.
+
+## Deployment
+
+<ExperimentDeployButton slug="sitemap-health-lab" />
+
+## Local Development
+
+```bash
+cd apps/experiments/sitemap-health-lab
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `NEXT_PUBLIC_SITE_URL` | No | Optional public site URL |
+
+## Vercel / Next.js Features Used
+
+- Route Handlers
+- Zod
+
+
+## Next Steps
+
+<Cards>
+  <Card title="SEO Meta Auditor" href="/docs/experiments/seo-meta-auditor">
+    Related experiment.
+  </Card>
+  <Card title="URL Brief Lab" href="/docs/experiments/url-brief-lab">
+    Related experiment.
+  </Card>
+</Cards>

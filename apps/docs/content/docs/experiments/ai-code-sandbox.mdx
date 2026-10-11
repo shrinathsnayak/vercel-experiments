@@ -1,0 +1,452 @@
+---
+title: AI Code Sandbox
+description: Run allowlisted arithmetic inside a Vercel Sandbox microVM - never unrestricted eval in-process.
+---
+
+<ExperimentEmbed slug="ai-code-sandbox" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+The AI Code Sandbox shows the safe shape of "run untrusted or generated code" features. A user types an arithmetic expression, a hand-written recursive-descent parser validates it against a strict allowlist (digits, `+ - * /`, parentheses, spaces), and only then, when the experiment is enabled, does a route handler start a [Vercel Sandbox](https://vercel.com/docs/vercel-sandbox) microVM with `networkPolicy: 'deny-all'` to print the result.
+
+The stack is Next.js Route Handlers, [Zod](https://zod.dev) for request validation, and `@vercel/sandbox`. It teaches the core rule of code execution: **never `eval` user or model-generated text in your application process.** Constrain the input language first, then isolate whatever still has to run.
+
+<Callout type="error">
+  **Live execution is gated.** The API returns `503` until `SANDBOX_ENABLED=true` is set and Sandbox credentials work in your project. The local parser always works without any setup, but it is a separate, in-process code path that never calls the sandbox.
+</Callout>
+
+## Features
+
+- **Allowlisted arithmetic only** - no identifiers, function calls, strings, or arbitrary JavaScript. Any letter, `_`, or `$` is rejected immediately.
+- **Hand-written parser** - tokenizer plus recursive descent with correct precedence, parentheses, unary minus, and division-by-zero detection. There is no `eval`, `Function`, or `vm` involved.
+- **Two buttons in the demo:** **Parse locally (AST)** runs the parser in the browser, and **Try isolated API stub** calls `POST /api/sandbox/execute`.
+- **Server gating** via `SANDBOX_ENABLED` - the route refuses to start a microVM until it is explicitly turned on.
+- **Deny-all networking** - the sandbox is created with `networkPolicy: 'deny-all'`.
+- **Defense in depth** - the sandbox script contains only an already-validated numeric literal, never the user's raw text.
+- **Structured errors** with distinct status codes for invalid JSON (`400`), disallowed expressions (`422`), sandbox failure (`500`), and sandbox launch failure (`502`).
+- **Requirements panel** in the demo that lists what production sandbox setup needs.
+
+## Server Reference
+
+### `POST /api/sandbox/execute`
+
+Validates an arithmetic expression and, if the experiment is enabled, executes the verified result in a Vercel Sandbox.
+
+Source: `app/api/sandbox/execute/route.ts`. Request body validation uses Zod.
+
+<TypeTable
+  type={{
+    expression: {
+      description:
+        'Arithmetic expression using digits, + - * /, parentheses, decimal points, spaces, and tabs. Length 1–120 characters. Letters, _ and $ are rejected.',
+      type: 'string',
+      required: true,
+    },
+  }}
+/>
+
+#### Request
+
+```bash
+curl -X POST http://localhost:3000/api/sandbox/execute \
+  -H "content-type: application/json" \
+  -d '{"expression":"(2 + 3) * 4 / 2"}'
+```
+
+#### Responses
+
+| Status | When | Body |
+| --- | --- | --- |
+| `200` | Sandbox ran and printed a finite number | `{ ok: true, value, mode, note }` |
+| `400` | Body is not valid JSON, or fails the Zod schema | `{ ok: false, error }` |
+| `422` | Expression rejected by the allowlist parser | `{ ok: false, error }` |
+| `500` | Sandbox command exited non-zero or printed a non-number | `{ ok: false, error }` |
+| `502` | Sandbox could not be created or crashed | `{ ok: false, error, fallback, note }` |
+| `503` | `SANDBOX_ENABLED` is not `true` | `{ ok: false, message, requirements }` |
+
+The gate check runs first, so a disabled deployment returns `503` before the body is read.
+
+#### Success (`200`)
+
+```json
+{
+  "ok": true,
+  "value": 10,
+  "mode": "vercel-sandbox",
+  "note": "Executed inside a Vercel Sandbox microVM with network denied. Expression was allowlisted before launch."
+}
+```
+
+#### Gated (`503`)
+
+```json
+{
+  "ok": false,
+  "message": "Isolated execution unavailable. Enable SANDBOX_ENABLED=true on a Vercel project with Sandbox access (OIDC), or provide VERCEL_TOKEN + project/team IDs locally. Only allowlisted arithmetic is accepted.",
+  "requirements": [
+    "Vercel Sandbox microVM via @vercel/sandbox - never eval in the Next.js process",
+    "Set SANDBOX_ENABLED=true on a Vercel project with Sandbox access (OIDC)",
+    "Locally: vercel link + token/project env, then vercel env pull",
+    "This demo only allows arithmetic expressions (no identifiers or arbitrary JS)",
+    "Sandbox is created with networkPolicy deny-all"
+  ]
+}
+```
+
+#### Invalid body (`400`)
+
+Two cases return `400`: a body that is not JSON, and one that fails the schema (missing or empty `expression`, not a string, or longer than 120 characters).
+
+```json
+{ "ok": false, "error": "Invalid JSON body" }
+```
+
+```json
+{ "ok": false, "error": "Invalid expression payload" }
+```
+
+#### Disallowed expression (`422`)
+
+```bash
+curl -X POST http://localhost:3000/api/sandbox/execute \
+  -H "content-type: application/json" \
+  -d '{"expression":"alert(1)"}'
+```
+
+```json
+{ "ok": false, "error": "Identifiers and function calls are not allowed" }
+```
+
+Other `422` errors from the parser:
+
+- `Expression is empty` (for example, only spaces)
+- `Expression too long` (only reachable by calling the parser directly; the route's schema already caps the input at 120 characters)
+- `Disallowed character: <ch>` (for example `2 ^ 3` or `2 % 3`)
+- `Invalid number literal` (for example `1.2.3`)
+- `Division by zero`
+- `Unexpected end of expression`, `Expected number or parenthesis`, `Missing closing parenthesis`
+- `Unexpected tokens after expression`
+- `Result is not a finite number`
+
+#### Sandbox failure (`500`)
+
+```json
+{ "ok": false, "error": "Sandbox execution failed: <stderr or 'unknown error'>" }
+```
+
+#### Sandbox launch failure (`502`)
+
+If `Sandbox.create` or the file and command calls throw (for example missing credentials), the route still returns the locally validated value as `fallback` so you can see the parser worked.
+
+```json
+{
+  "ok": false,
+  "error": "<error message from the SDK>",
+  "fallback": 10,
+  "note": "Sandbox launch failed; arithmetic was still validated locally without eval."
+}
+```
+
+<Callout type="info">
+  The route does not apply per-IP rate limiting or authentication. Once `SANDBOX_ENABLED=true`, every valid request starts a microVM that can incur usage. Put it behind authentication and a limit (see the [Rate Limiting Simulator](/docs/experiments/rate-limiting-simulator)) before exposing it publicly.
+</Callout>
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### Gate on `SANDBOX_ENABLED`
+
+The first thing the handler does is refuse to run unless the flag is exactly the string `true`.
+
+```ts title="apps/experiments/ai-code-sandbox/logic.ts"
+export function isSandboxEnabled(): boolean {
+  return process.env.SANDBOX_ENABLED === 'true';
+}
+```
+
+```ts title="app/api/sandbox/execute/route.ts"
+if (!isSandboxEnabled()) {
+  return NextResponse.json(
+    {
+      ok: false,
+      message: SETUP_MESSAGE,
+      requirements: SANDBOX_SETUP_REQUIREMENTS,
+    },
+    { status: 503 },
+  );
+}
+```
+
+</Step>
+<Step>
+
+### Validate the request body
+
+The body must be JSON with a string `expression` of 1 to 120 characters.
+
+```ts title="app/api/sandbox/execute/route.ts"
+const bodySchema = z.object({
+  expression: z.string().min(1).max(120),
+});
+
+const parsed = bodySchema.safeParse(json);
+if (!parsed.success) {
+  return NextResponse.json({ ok: false, error: 'Invalid expression payload' }, { status: 400 });
+}
+```
+
+</Step>
+<Step>
+
+### Parse against the allowlist
+
+`parseAllowlistedArithmetic` trims, enforces the length limit, rejects any identifier character, tokenizes, and evaluates with a recursive-descent parser. The route returns `422` if it fails.
+
+```ts title="apps/experiments/ai-code-sandbox/logic.ts"
+const MAX_EXPRESSION_LENGTH = 120;
+
+export function parseAllowlistedArithmetic(raw: string): ArithmeticParseResult {
+  const expr = raw.trim();
+  if (!expr) {
+    return { ok: false, error: 'Expression is empty' };
+  }
+  if (expr.length > MAX_EXPRESSION_LENGTH) {
+    return { ok: false, error: 'Expression too long' };
+  }
+  if (/[a-zA-Z_$]/.test(expr)) {
+    return { ok: false, error: 'Identifiers and function calls are not allowed' };
+  }
+  // tokenize -> parseExpression -> check every token was consumed -> isFinite
+}
+```
+
+The grammar is deliberately tiny: `expression` handles `+` and `-`, `term` handles `*` and `/`, and `factor` handles numbers, unary minus, and parentheses.
+
+</Step>
+<Step>
+
+### Launch the microVM with networking denied
+
+Only now is `@vercel/sandbox` imported (dynamically) and a sandbox created.
+
+```ts title="app/api/sandbox/execute/route.ts"
+const { Sandbox } = await import('@vercel/sandbox');
+const sandbox = await Sandbox.create({
+  timeout: 60_000,
+  networkPolicy: 'deny-all',
+});
+```
+
+</Step>
+<Step>
+
+### Run only the validated number
+
+The file written into the sandbox contains `JSON.stringify` of the **parsed numeric value**, never the user's text. The sandbox runs `node run.mjs` and the handler reads stdout.
+
+```ts title="app/api/sandbox/execute/route.ts"
+await sandbox.writeFiles([
+  {
+    path: 'run.mjs',
+    content: Buffer.from(
+      `const value = ${JSON.stringify(arithmetic.value)};\nconsole.log(value);\n`,
+    ),
+  },
+]);
+const result = await sandbox.runCommand('node', ['run.mjs']);
+const stdout = (await result.stdout()).trim();
+const value = Number(stdout);
+```
+
+<Callout type="info">
+  This is intentionally a minimal demonstration. The arithmetic itself is computed by the local parser; the sandbox prints the verified result. The point of the demo is the boundary: validated input, a deny-all network, and no `eval` in the app process. For real untrusted-code workloads, run the entire computation inside the sandbox.
+</Callout>
+
+</Step>
+<Step>
+
+### Always stop the sandbox
+
+A `finally` block stops the microVM whether the run succeeded or failed.
+
+```ts title="app/api/sandbox/execute/route.ts"
+} finally {
+  await sandbox.stop().catch(() => undefined);
+}
+```
+
+</Step>
+</Steps>
+
+### Local parser examples
+
+Results from the real parser:
+
+| Expression | Result |
+| --- | --- |
+| `(2 + 3) * 4 / 2` | `{ ok: true, value: 10 }` |
+| `-(1+2)` | `{ ok: true, value: -3 }` |
+| `1/0` | `{ ok: false, error: "Division by zero" }` |
+| `alert(1)` | `{ ok: false, error: "Identifiers and function calls are not allowed" }` |
+| `2 +` | `{ ok: false, error: "Unexpected end of expression" }` |
+| `1.2.3` | `{ ok: false, error: "Invalid number literal" }` |
+
+## Use Cases
+
+- Learn the pattern for running AI-generated or user-provided code safely: restrict the language, then isolate execution.
+- Give an LLM a "calculator" tool whose inputs are validated before they reach any runtime.
+- Prototype a code-interpreter feature before expanding the allowlist.
+- Teach why `eval`, `new Function`, and `vm` inside your web server are not sandboxes.
+
+## Limitations
+
+- **Live execution stays gated until `SANDBOX_ENABLED=true`.** Without it the API returns `503` with setup requirements.
+- **Only allowlisted arithmetic is accepted - no eval or unrestricted JS.** Letters, `_`, `$`, strings, and function calls are rejected.
+- **The sandbox runs with `networkPolicy` deny-all when credentials work.** If credentials are missing, the sandbox is not created at all and the route returns `502`.
+- **Expression length is capped at 120 characters.**
+- **Sandbox timeout is 60 seconds** (`timeout: 60_000`) per request.
+- **The sandbox prints a pre-computed number.** The calculation happens in the local parser; the microVM demonstrates isolation and gating rather than heavy computation.
+- **No rate limiting or auth** on the route. Add both before enabling it on a public deployment.
+- **Parser scope.** No exponentiation, modulo, constants, or functions. Number literals are digits with optional decimal points; scientific notation is not supported.
+- **Sandbox availability.** Requires Vercel Sandbox access for your account or project. Not available on a plain local setup without credentials.
+
+## Use in your project
+
+A reusable pattern: validate with an allowlist first, then hand only the validated value to the isolated runtime.
+
+```ts title="app/api/calc/route.ts"
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { parseAllowlistedArithmetic } from '@/lib/arithmetic'; // copy of logic.ts parser
+
+const body = z.object({ expression: z.string().min(1).max(120) });
+
+export async function POST(request: Request) {
+  if (process.env.SANDBOX_ENABLED !== 'true') {
+    return NextResponse.json({ ok: false, message: 'Sandbox disabled' }, { status: 503 });
+  }
+
+  const parsedBody = body.safeParse(await request.json().catch(() => null));
+  if (!parsedBody.success) {
+    return NextResponse.json({ ok: false, error: 'Invalid payload' }, { status: 400 });
+  }
+
+  const arithmetic = parseAllowlistedArithmetic(parsedBody.data.expression);
+  if (!arithmetic.ok) {
+    return NextResponse.json({ ok: false, error: arithmetic.error }, { status: 422 });
+  }
+
+  const { Sandbox } = await import('@vercel/sandbox');
+  const sandbox = await Sandbox.create({ timeout: 60_000, networkPolicy: 'deny-all' });
+  try {
+    await sandbox.writeFiles([
+      {
+        path: 'run.mjs',
+        content: Buffer.from(`console.log(${JSON.stringify(arithmetic.value)});\n`),
+      },
+    ]);
+    const result = await sandbox.runCommand('node', ['run.mjs']);
+    return NextResponse.json({ ok: true, value: Number((await result.stdout()).trim()) });
+  } finally {
+    await sandbox.stop().catch(() => undefined);
+  }
+}
+```
+
+Copy `parseAllowlistedArithmetic` from `apps/experiments/ai-code-sandbox/logic.ts` (it has no dependencies) and install the SDK with `pnpm add @vercel/sandbox`.
+
+## Deployment
+
+<ExperimentDeployButton slug="ai-code-sandbox" />
+
+
+<Callout type="info">
+  The experiment's Deploy button uses the platform deploy URL from `lib/experiments/data.ts`. It provisions Blob, Upstash Redis, and Neon stores and prompts for `AI_GATEWAY_API_KEY` and `NEXT_PUBLIC_SITE_URL`. It does **not** enable Sandbox; you must set `SANDBOX_ENABLED` yourself.
+</Callout>
+
+1. Use the Deploy button on this experiment page.
+2. Make sure your Vercel account and project have access to Vercel Sandbox. On Vercel, `@vercel/sandbox` authenticates with OIDC automatically.
+3. Add `SANDBOX_ENABLED=true` in **Project Settings - Environment Variables** and redeploy.
+4. Call `POST /api/sandbox/execute` or use the demo's **Try isolated API stub** button.
+
+Until step 3, the site works normally and the API reports setup requirements with `503`.
+
+## Local Development
+
+```bash
+pnpm install
+pnpm dev
+```
+
+The local parser button works immediately. To exercise the real sandbox locally:
+
+```bash
+vercel link
+vercel env pull
+```
+
+Then set `SANDBOX_ENABLED=true` in `.env.local`. The repo's `.env.example` also lists optional `VERCEL_TOKEN`, `VERCEL_TEAM_ID`, and `VERCEL_PROJECT_ID` for token-based authentication. The app does not read them directly; they are consumed by the Sandbox SDK.
+
+Try the API:
+
+```bash
+# Gated (SANDBOX_ENABLED not true) -> 503 with requirements
+curl -i -X POST http://localhost:3000/api/sandbox/execute \
+  -H "content-type: application/json" \
+  -d '{"expression":"(2 + 3) * 4 / 2"}'
+
+# Rejected by the allowlist -> 422 (requires SANDBOX_ENABLED=true)
+curl -i -X POST http://localhost:3000/api/sandbox/execute \
+  -H "content-type: application/json" \
+  -d '{"expression":"process.exit(1)"}'
+
+# Invalid body -> 400 (requires SANDBOX_ENABLED=true)
+curl -i -X POST http://localhost:3000/api/sandbox/execute \
+  -H "content-type: application/json" \
+  -d '{"expression":""}'
+```
+
+Run the parser's unit tests:
+
+```bash
+pnpm vitest run ../experiments/ai-code-sandbox
+```
+
+## Configuration
+
+| Variable | Required | Exposure | Purpose |
+| --- | --- | --- | --- |
+| `SANDBOX_ENABLED` | Yes, to run live | Server only | Must be exactly `true` to allow microVM execution |
+| `VERCEL_TOKEN` | Local only, optional | Server only | Token auth for the Sandbox SDK outside Vercel |
+| `VERCEL_TEAM_ID` | Local only, optional | Server only | Team scope for token auth |
+| `VERCEL_PROJECT_ID` | Local only, optional | Server only | Project scope for token auth |
+
+External service: **Vercel Sandbox**. Tunable constants are `MAX_EXPRESSION_LENGTH` (120) in `logic.ts`, and `timeout` (60,000 ms) and `networkPolicy` in the route.
+
+Never place these values in `NEXT_PUBLIC_*` variables.
+
+## Vercel / Next.js Features Used
+
+- [Vercel Sandbox](https://vercel.com/docs/vercel-sandbox) - isolated microVMs created through `@vercel/sandbox`.
+- [OIDC tokens on Vercel](https://vercel.com/docs/oidc) - how the SDK authenticates when deployed.
+- [Next.js Route Handlers](https://nextjs.org/docs/app/getting-started/route-handlers) - `POST /api/sandbox/execute`.
+- [Environment variables](https://vercel.com/docs/environment-variables) - the `SANDBOX_ENABLED` gate.
+- [Zod](https://zod.dev) - request validation.
+
+## Next Steps
+
+<Cards>
+  <Card title="AI Streaming Lab" href="/docs/experiments/ai-streaming-lab">
+    Stream text, structured output, and tool calls with the AI SDK.
+  </Card>
+  <Card title="Rate Limiting Simulator" href="/docs/experiments/rate-limiting-simulator">
+    Learn how to protect expensive endpoints before exposing them.
+  </Card>
+  <Card title="Vercel Sandbox" href="https://vercel.com/docs/vercel-sandbox">
+    Official documentation for isolated code execution.
+  </Card>
+</Cards>

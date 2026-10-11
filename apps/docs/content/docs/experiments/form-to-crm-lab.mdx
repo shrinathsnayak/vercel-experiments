@@ -1,0 +1,132 @@
+---
+title: Form to CRM Lab
+description: Lead form - Zod validate - AI enrich (companyGuess, urgency) - Neon insert or memory - optional outbound webhook.
+---
+
+<ExperimentEmbed slug="form-to-crm-lab" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+Form to CRM Lab accepts a lead form, validates with Zod, enriches via `generateObject` (`companyGuess`, `urgency`), then inserts into Neon when `DATABASE_URL` is set. Without Postgres it keeps an in-memory list and shows a UI note. Optionally POSTs the lead to a user-provided webhook URL. Missing AI keys return `503`.
+
+## Features
+
+- **Lead form - CRM row** – name, email, optional company/message.
+- **AI enrich** – company guess + urgency; never fabricates when AI is missing.
+- **Neon or memory** – `experiment_leads` table when configured.
+- **Optional outbound webhook** – timeout-capped POST to your URL.
+- **Honest `503`** when AI Gateway / OpenAI is not configured.
+
+## Server Reference
+
+### `POST /api/leads`
+
+```json
+{
+  "name": "Alex Rivera",
+  "email": "alex@acme.io",
+  "company": "",
+  "message": "...",
+  "webhookUrl": "https://example.com/hooks/leads"
+}
+```
+
+#### Success (`200`)
+
+```json
+{
+  "lead": {
+    "id": "lead-1",
+    "companyGuess": "Acme",
+    "urgency": "high",
+    "webhookStatus": "ok"
+  },
+  "storage": "neon",
+  "provider": "ai-gateway"
+}
+```
+
+### `GET /api/leads`
+
+Lists persisted leads (`storage: neon | memory`).
+
+| Status | Cause |
+| --- | --- |
+| `503` | No AI provider |
+| `400` | Invalid name/email |
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### Validate + enrich
+
+Normalize email, truncate message, `generateObject` for enrichment.
+
+</Step>
+<Step>
+
+### Persist + webhook
+
+Neon insert or module `Map`, then optional outbound POST.
+
+</Step>
+</Steps>
+
+## Use Cases
+
+- Learn composition patterns for this lab’s stack.
+- Prototype before wiring production auth and quotas.
+- Deploy the standalone app as a reference implementation.
+
+## Limitations
+
+- Demo-scale caps on input size and lead count.
+- No auth / rate limits on public deploys.
+- Webhook delivery is best-effort (5s timeout).
+
+## Use in your project
+
+Copy the Route Handler and `logic.ts` helpers from `apps/experiments/form-to-crm-lab/`. Wire your own persistence and auth as needed.
+
+## Deployment
+
+<ExperimentDeployButton slug="form-to-crm-lab" />
+
+## Local Development
+
+```bash
+cd apps/experiments/form-to-crm-lab
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `AI_GATEWAY_API_KEY` | Yes (or `OPENAI_API_KEY`) | Preferred provider |
+| `OPENAI_API_KEY` | No | Fallback |
+| `AI_MODEL` | No | Model override |
+| `DATABASE_URL` | No | Neon persistence |
+
+## Vercel / Next.js Features Used
+
+- AI SDK `generateObject`
+- Neon serverless Postgres
+- Route Handlers
+- Zod
+
+## Next Steps
+
+<Cards>
+  <Card title="Notes to Actions Lab" href="/docs/experiments/notes-to-actions-lab">
+    Meeting notes - Neon/memory actions.
+  </Card>
+  <Card title="Webhook Playground" href="/docs/experiments/webhook-playground">
+    Capture and inspect webhook traffic.
+  </Card>
+</Cards>

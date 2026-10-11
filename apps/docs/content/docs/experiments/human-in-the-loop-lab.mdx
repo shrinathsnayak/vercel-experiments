@@ -1,0 +1,83 @@
+---
+title: Human-in-the-Loop Lab
+description: AI proposes an email draft; you edit it, then POST the approved payload to a webhook URL.
+---
+
+<ExperimentEmbed slug="human-in-the-loop-lab" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+Generate an email draft with AI, edit it in the UI, then approve a POST to your webhook. Missing AI keys return `503`.
+
+## Features
+
+- Standalone Next.js app under `apps/experiments/human-in-the-loop-lab/`.
+- Honest degradation when optional services are missing.
+- Unit-tested helpers in `logic.ts`.
+
+## Server Reference
+
+### `POST /api/propose · POST /api/send`
+
+```
+{ "brief": "..." } / { "email": {...}, "webhookUrl": "..." }
+```
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### Run the demo
+
+Use the embedded playground or `pnpm dev` in the experiment app.
+
+</Step>
+<Step>
+
+### Inspect the handlers
+
+Copy Route Handlers from `apps/experiments/human-in-the-loop-lab/` into your project.
+
+</Step>
+</Steps>
+
+## Limitations
+
+- Educational demo — not a production-hardened product.
+- Inputs are length-capped.
+
+## Use in your project
+
+Copy the experiment folder or individual Route Handlers.
+
+## Deployment
+
+<ExperimentDeployButton slug="human-in-the-loop-lab" />
+
+## Local Development
+
+```bash
+cd apps/experiments/human-in-the-loop-lab
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `AI_GATEWAY_API_KEY` | Yes | Lab configuration |
+
+## Vercel / Next.js Features Used
+
+- AI SDK, AI Gateway, Zod
+
+## Next Steps
+
+<Cards>
+  <Card title="form-to-crm-lab" href="/docs/experiments/form-to-crm-lab">Related lab.</Card>
+  <Card title="webhook-playground" href="/docs/experiments/webhook-playground">Related lab.</Card>
+</Cards>

@@ -1,0 +1,88 @@
+---
+title: MCP Tools Lab
+description: "Standalone MCP-shaped tool server exposing experiment catalog search over a local registry snapshot."
+---
+
+<ExperimentEmbed slug="mcp-tools-lab" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+A standalone MCP-shaped tools endpoint that searches a **local experiment catalog snapshot**. The hub MCP at `apps/docs/app/api/mcp` indexes docs via fumadocs; this lab focuses on catalog tools you can deploy alone.
+
+## Features
+
+- tools/list and tools/call RPC shape
+- search_experiments / get_experiment / list_experiments
+- Local registry snapshot in logic.ts
+- Interactive demo UI
+
+## API Reference
+
+### GET /api/mcp
+
+Server info + tool schemas.
+
+### POST /api/mcp
+
+`{ method: "tools/list" | "tools/call" | "initialize", params? }`.
+
+## Implementation Details
+
+<Files>
+  <Folder name="apps/experiments/mcp-tools-lab" defaultOpen>
+    <File name="demo.tsx" />
+    <File name="logic.ts" />
+    <File name="logic.test.ts" />
+  </Folder>
+</Files>
+
+Catalog search is pure (`searchCatalog`, `getBySlug`). The route validates RPC bodies with Zod.
+
+## Use Cases
+
+- Agent tool servers
+- Catalog search for AI clients
+- Teaching MCP tool shapes
+
+## Limitations
+
+- Not the full MCP transport stack of the docs hub.
+- Snapshot may lag the live registry.
+- No auth on the demo endpoint.
+
+## Use in your project
+
+Deploy or copy `apps/experiments/mcp-tools-lab/` and adapt the Route Handlers and pure helpers in `logic.ts`. Keep honest fallbacks when optional services are missing.
+
+## Deployment
+
+<ExperimentDeployButton slug="mcp-tools-lab" />
+
+## Local Development
+
+```bash
+cd apps/experiments/mcp-tools-lab
+pnpm install
+pnpm dev
+```
+
+Open http://localhost:3010
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| _(none)_ | - | Works without extra secrets |
+
+## Vercel / Next.js Features Used
+
+- Route Handlers
+- MCP-shaped tools
+
+## Next Steps
+
+- Explore related labs from the registry `relatedSlugs`
+- Harden secrets, auth, and input limits before production
+- Prefer platform primitives when you outgrow demo patterns

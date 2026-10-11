@@ -1,0 +1,90 @@
+---
+title: Usage Meter Lab
+description: Per-session API metering with soft and hard limits backed by Redis/memory counters.
+---
+
+<ExperimentEmbed slug="usage-meter-lab" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+Usage Meter Lab is a Wave 3 Batch H composition lab. Pure helpers live in `logic.ts`; missing providers or stores degrade honestly (never fabricate AI output).
+
+## Features
+
+- Soft + hard limits
+- Per-session counters
+- Redis/memory store
+
+## API Reference
+
+### `POST /api/meter · GET /api/meter`
+
+```json
+{ "sessionId": "demo-1" }
+```
+
+| Status | Cause |
+| --- | --- |
+| `200` | Allowed / soft warning |
+| `429` | Hard limit |
+| `400` | Missing session |
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### Validate
+
+Inputs are length-capped in `logic.ts`; APIs return `400` for missing fields.
+
+</Step>
+<Step>
+
+### Run
+
+Route Handlers compose AI SDK, Redis/Neon, or `ImageResponse` as documented. Fallbacks include honest notes.
+
+</Step>
+</Steps>
+
+## Limitations
+
+- Not billing-grade metering.
+- No stripe invoices.
+- Demo caps only.
+
+## Use in your project
+
+Copy the Route Handler(s) and `logic.ts` from `apps/experiments/usage-meter-lab/`.
+
+## Deployment
+
+<ExperimentDeployButton slug="usage-meter-lab" />
+
+## Local Development
+
+```bash
+cd apps/experiments/usage-meter-lab
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `UPSTASH_REDIS_REST_*` | No | Durable counters |
+
+## Next Steps
+
+<Cards>
+  <Card title="Rate Limiting Simulator" href="/docs/experiments/rate-limiting-simulator">
+    Related experiment.
+  </Card>
+  <Card title="Cost Aware Ai Lab" href="/docs/experiments/cost-aware-ai-lab">
+    Related experiment.
+  </Card>
+</Cards>

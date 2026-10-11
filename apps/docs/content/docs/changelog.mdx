@@ -1,0 +1,158 @@
+---
+title: What's New
+description: User-facing updates to Vercel Experiments - new labs, docs features, and notable changes.
+---
+
+# What's New
+
+User-facing updates to Vercel Experiments - new labs, docs features, and notable changes.
+
+## October 12, 2026
+
+* **Experiment surfaces (not every lab is an API)** - docs and registry now default to **UI Reference**; Route Handlers only when HTTP, secrets, or ImageResponse need them. Added registry `surface` (`ui` | `route-handlers` | `mixed`). Pruned thin JSON wrappers from CDN Redirects, Favicon Brand Kit, and Thumbnail Factory; Vercel Flags local mode is UI-only; AI lab docs use **Server Reference**.
+* **Wave 3 Batch H composition labs** - fifteen apps for boards, approvals, tenancy, webhooks, gates, metering, vision, and ImageResponse kits:
+  * [Feature Request Board](/docs/experiments/feature-request-board) - ideas - AI clusters - Redis/memory votes
+  * [Approval Workflow Lab](/docs/experiments/approval-workflow-lab) - draft - token approve/reject (Neon/memory)
+  * [Multi-Tenant Notes](/docs/experiments/multi-tenant-notes) - tenant header/path - isolated notes
+  * [Webhook to Sheet Lab](/docs/experiments/webhook-to-sheet-lab) - webhook receive - sheet rows + replay
+  * [Auth-Gated Preview](/docs/experiments/auth-gated-preview) - password gate + draft/preview content
+  * [Invite-Only Beta](/docs/experiments/invite-only-beta) - invite codes - allowlist demo
+  * [Usage Meter Lab](/docs/experiments/usage-meter-lab) - per-session soft/hard API metering
+  * [Screenshot to Ticket](/docs/experiments/screenshot-to-ticket) - image vision - structured bug report
+  * [Whiteboard to Tasks](/docs/experiments/whiteboard-to-tasks) - image - tasks JSON
+  * [Product Shot Copy](/docs/experiments/product-shot-copy) - image - title/bullets + optional OG
+  * [Before After Diff Lab](/docs/experiments/before-after-diff-lab) - two images - change summary
+  * [Diagram to Mermaid](/docs/experiments/diagram-to-mermaid) - description or image - Mermaid + caveat
+  * [PDF Redaction Helper](/docs/experiments/pdf-redaction-helper) - text - PII span suggestions (not perfect redaction)
+  * [Thumbnail Factory](/docs/experiments/thumbnail-factory) - title/theme - ImageResponse batch thumbs
+  * [Favicon Brand Kit](/docs/experiments/favicon-brand-kit) - color+letter - icon ImageResponse set
+* **Batch E AI composition labs** - seven apps for tools, HITL, RAG, repair, eval, guardrails, and form fill:
+  * [Tool-Calling Weather Demo](/docs/experiments/tool-calling-weather-demo) - mock weather/time/calc tools + visible tool trace
+  * [Human-in-the-Loop Lab](/docs/experiments/human-in-the-loop-lab) - AI email draft - user edit - webhook POST
+  * [RAG from Markdown](/docs/experiments/rag-from-markdown) - multi-file MD - Q&A with source chunks
+  * [JSON Repair Lab](/docs/experiments/json-repair-lab) - broken JSON - repaired + diff
+  * [Prompt A/B Eval](/docs/experiments/prompt-ab-eval) - two system prompts - side-by-side + judge scores
+  * [Guardrails Lab](/docs/experiments/guardrails-lab) - allow/block/rewrite policy + audit log
+  * [Structured Form Filler](/docs/experiments/structured-form-filler) - prose - Zod fields with confidence
+* **Batch F platform composition labs** - five platform labs for image CDN, ISR products, SWR catalogs, cron sitemaps, and env promotion:
+  * [Image CDN Compare](/docs/experiments/image-cdn-compare) - raw URL vs `/_next/image` size/format table
+  * [ISR Product Page](/docs/experiments/isr-product-page) - fake products with revalidate + on-demand button
+  * [Stale-While-Revalidate Shop](/docs/experiments/stale-while-revalidate-shop) - catalog SWR headers + Redis/memory + timeline
+  * [Cron Sitemap Rebuild](/docs/experiments/cron-sitemap-rebuild) - Cron regenerates sitemap.xml (Neon/Blob/memory)
+  * [Env Promotion Checklist](/docs/experiments/env-promotion-checklist) - Preview vs Prod required env checklist (redacted)
+* **Batch G vertical mini composition labs** - twenty AI vertical demos (structured / stream where apt; Neon/Redis only for persistence demos):
+  * [Tutor Chat Lab](/docs/experiments/tutor-chat-lab) - topic-grounded `streamText` tutoring
+  * [Recipe from Fridge](/docs/experiments/recipe-from-fridge) - ingredients - recipes + missing items
+  * [Itinerary Builder](/docs/experiments/itinerary-builder) - destination - streamed day plan
+  * [Budget Split Lab](/docs/experiments/budget-split-lab) - local fair-share math + AI rationale
+  * [Habit Tracker Lite](/docs/experiments/habit-tracker-lite) - AI plan + Redis/memory check-ins
+  * [Newsletter Remix](/docs/experiments/newsletter-remix) - article - subjects + tone variants
+  * [Price Watch Lab](/docs/experiments/price-watch-lab) - pasted targets + Redis/memory watch list
+  * [Glossary Builder](/docs/experiments/glossary-builder) - domain text - glossary terms
+  * [RFC Writer Lab](/docs/experiments/rfc-writer-lab) - problem - RFC outline sections
+  * [Postmortem Generator](/docs/experiments/postmortem-generator) - incident notes - blameless draft
+  * [Onboarding Checklist AI](/docs/experiments/onboarding-checklist-ai) - role - checklist + Neon/memory progress
+  * [Competitor Battlecard](/docs/experiments/competitor-battlecard) - notes - talk tracks
+  * [Customer Voice Themes](/docs/experiments/customer-voice-themes) - feedback - themes + quotes
+  * [OKRs from Strategy](/docs/experiments/okrs-from-strategy) - strategy - objectives/KRs
+  * [Meeting Agenda Lab](/docs/experiments/meeting-agenda-lab) - goals - timed agenda
+  * [Legal Hold Notice](/docs/experiments/legal-hold-notice) - educational hold draft + not-legal-advice banner
+  * [Accessibility Copy Fix](/docs/experiments/accessibility-copy-fix) - local heuristics + AI rewrites
+  * [i18n String Lab](/docs/experiments/i18n-string-lab) - strings - keys + sample locales
+  * [Email Sequence Lab](/docs/experiments/email-sequence-lab) - brief - multi-touch sequence
+  * [Pitch Deck Outline](/docs/experiments/pitch-deck-outline) - idea - streamed slide outline
+* **Wave 3 Batch C/D composition labs** - waitlist, job queue, Stripe HMAC sandbox, and voice notes:
+  * [Waitlist Viral Lab](/docs/experiments/waitlist-viral-lab) - email waitlist - Neon/memory + referral codes + Cron drip preview
+  * [Job Queue Lite](/docs/experiments/job-queue-lite) - enqueue Redis/memory - Cron drain - progress UI
+  * [Stripe Events Sandbox](/docs/experiments/stripe-events-sandbox) - paste Stripe-like JSON - real HMAC verify - idempotent log
+  * [Voice Notes Lab](/docs/experiments/voice-notes-lab) - transcript paste - chapters/summary/actions (audio stub)
+* **Wave 3 Batch A composition labs** - nine AI + files/content apps composing `generateObject` with real document workflows:
+  * [Contract Clause Finder](/docs/experiments/contract-clause-finder) - contract paste/PDF - risk/obligation/date table
+  * [Invoice Matcher Lab](/docs/experiments/invoice-matcher-lab) - invoice + PO - match/mismatch + confidence
+  * [Syllabus Planner Lab](/docs/experiments/syllabus-planner-lab) - syllabus - weekly study plan JSON
+  * [Policy Simplifier Lab](/docs/experiments/policy-simplifier-lab) - terms/privacy - plain-language summary
+  * [Codebase README Lab](/docs/experiments/codebase-readme-lab) - tree + snippets - README draft
+  * [Schema from Sample Lab](/docs/experiments/schema-from-sample-lab) - JSON/CSV - Zod/TS type strings
+  * [SQL from Question Lab](/docs/experiments/sql-from-question-lab) - DDL + English - SQL (Neon run optional / explain-only default)
+  * [API Mock from OpenAPI](/docs/experiments/api-mock-from-openapi) - OpenAPI - mock Route Handler stubs download
+  * [Regex Explainer Lab](/docs/experiments/regex-explainer-lab) - regex explain (AI) + test-string highlights (`logic.ts`)
+* **Wave 3 composition labs** - eight apps composing CRM, cron digests, A/B copy, status checks, cost-aware AI, support triage, link previews, and Redis thread memory:
+  * [Form to CRM Lab](/docs/experiments/form-to-crm-lab) - lead form - AI enrich - Neon/memory - optional webhook
+  * [Inbox Digest Cron](/docs/experiments/inbox-digest-cron) - seed inbox - Cron digest (AI or deterministic)
+  * [A/B Landing Copy Lab](/docs/experiments/ab-landing-copy-lab) - AI headlines + cookie buckets + funnel counters
+  * [Status Page Lab](/docs/experiments/status-page-lab) - synthetic checks + Redis/memory history + public status
+  * [Cost-Aware AI Lab](/docs/experiments/cost-aware-ai-lab) - dual-model latency + labeled token/cost estimates
+  * [Support Triage Lab](/docs/experiments/support-triage-lab) - ticket - category/priority/reply + Redis rate limit
+  * [Link Preview Enricher](/docs/experiments/link-preview-enricher) - meta fetch - rewritten titles - ImageResponse (+ Blob)
+  * [Memory Thread Lab](/docs/experiments/memory-thread-lab) - multi-turn chat with Redis TTL memory
+* **Batch B URL/web composition labs** - nine standalone experiments for fetch, feeds, SEO, and paste-based triage:
+  * [Competitor Page Diff](/docs/experiments/competitor-page-diff) - two capped page fetches - structured messaging diff
+  * [RSS Digest Lab](/docs/experiments/rss-digest-lab) - feed URL - top-N digests with regenerate
+  * [Sitemap Health Lab](/docs/experiments/sitemap-health-lab) - sitemap sample link checks (rate-limited)
+  * [Robots Policy Advisor](/docs/experiments/robots-policy-advisor) - robots.txt paste/URL - allow/deny advice
+  * [Lighthouse Action Plan](/docs/experiments/lighthouse-action-plan) - Lighthouse JSON - prioritized Next.js fixes
+  * [npm Package Brief](/docs/experiments/npm-package-brief) - registry metadata - when to use/avoid (no install)
+  * [GitHub Issue Triage](/docs/experiments/github-issue-triage) - issue paste - labels + first response (no token)
+  * [Stack Trace Fixer](/docs/experiments/stack-trace-fixer) - error+stack - Next.js tips + repro checklist
+  * [SEO Meta Auditor](/docs/experiments/seo-meta-auditor) - URL meta gaps + rewritten suggestions + OG preview
+* **Phase 5 edge & platform gap labs** - ten standalone experiments covering geo, bot gates, rollouts, realtime, redirects, JWT auth, zones, MCP tools, and Draft Mode:
+  * [Geolocation Lab](/docs/experiments/geolocation-lab) - Vercel geo headers + Intl currency/date
+  * [Bot Protection Lab](/docs/experiments/bot-protection-lab) - challenge + rate-limit gate (honest non-BotID demo)
+  * [Maintenance / Canary Lab](/docs/experiments/maintenance-canary-lab) - kill switch + percentage canary via `proxy.ts`
+  * [A/B Testing Lab](/docs/experiments/ab-testing-lab) - sticky cookie cohorts with impression/conversion tracking
+  * [WebSockets Lab](/docs/experiments/websockets-lab) - Fluid realtime constraints + labeled SSE playground
+  * [CDN Redirects Lab](/docs/experiments/cdn-redirects-lab) - editable map - `vercel.json` export + live Route Handler test
+  * [Edge Auth Lab](/docs/experiments/edge-auth-lab) - short-lived JWTs with `jose` + clock-skew cases
+  * [Microfrontends Zones Lab](/docs/experiments/microfrontends-zones-lab) - shell + zone child contract
+  * [MCP Tools Lab](/docs/experiments/mcp-tools-lab) - catalog search tools over a registry snapshot
+  * [Draft Mode CMS Lab](/docs/experiments/draft-mode-cms-lab) - markdown draft - Draft Mode preview - publish
+
+## October 11, 2026
+
+* **Wave 2 composition labs** - eight more apps that compose AI SDK / platform patterns (Neon, Redis, Blob, streamObject, ImageResponse, CSV parse, diffs):
+  * [Notes to Actions Lab](/docs/experiments/notes-to-actions-lab) - meeting notes - action items with Neon or in-memory persistence
+  * [Docs to FAQ Lab](/docs/experiments/docs-to-faq-lab) - markdown - FAQ pairs with Redis content-hash cache
+  * [Image Alt Studio](/docs/experiments/image-alt-studio) - vision alt / SEO filename / caption + optional Blob
+  * [Streaming UI Checklist](/docs/experiments/streaming-ui-checklist) - `streamObject` partial checklist UI
+  * [OG from Database](/docs/experiments/og-from-database) - Neon/in-memory products - `ImageResponse` OG cards
+  * [Slide Deck Summarizer](/docs/experiments/slide-deck-summarizer) - PDF/text - streamed per-slide bullets + brief
+  * [CSV Insight Lab](/docs/experiments/csv-insight-lab) - parse CSV locally, insights without inventing rows
+  * [Changelog from Diff Lab](/docs/experiments/changelog-from-diff-lab) - PR diff - customer-facing + internal notes
+* **Wave 1 composition labs** - six AI-backed apps that compose AI SDK patterns with real inputs (PDF/text, receipts, resumes, URLs, notes, RAG-style chat):
+  * [PDF Quiz Lab](/docs/experiments/pdf-quiz-lab) - extract text, `generateObject` MCQs, interactive score UI
+  * [Receipt to JSON Lab](/docs/experiments/receipt-to-json-lab) - text or vision - structured expense JSON
+  * [Resume Fit Lab](/docs/experiments/resume-fit-lab) - match score, missing skills, rewritten bullets
+  * [URL Brief Lab](/docs/experiments/url-brief-lab) - capped fetch + streamed summary + `ImageResponse` OG preview
+  * [Flashcards from Notes](/docs/experiments/flashcards-from-notes) - notes - flip cards + JSON export
+  * [Chat with Your PDF](/docs/experiments/chat-with-your-pdf) - chunk + keyword retrieval + cited answers
+* **Catalog prune** - removed low-value / duplicate labs: Feature Flag Playground (superseded by Vercel Flags Lab + Global Config Lab), Multi-Tenant Routing Demo (simulator-only overlap with Middleware and Routing Lab), plus earlier removals of pure toys and redundant sims. Platform primitives stay; the catalog favors real APIs and composition labs.
+* **3 new platform labs** for recent Vercel products:
+  * [Workflows Lab](/docs/experiments/workflows-lab) - durable `'use workflow'` / `'use step'` / `sleep` with the Workflow SDK
+  * [Queues Lab](/docs/experiments/queues-lab) - `@vercel/queue` publish + private `queue/v2beta` consumer
+  * [Vercel Flags Lab](/docs/experiments/vercel-flags-lab) - platform-native Flags SDK evaluation with entity targeting
+* **5 platform experiments**, including:
+  * [Blob Storage Lab](/docs/experiments/blob-storage-lab) - upload, list, and delete objects with Vercel Blob
+  * [Global Config Lab](/docs/experiments/global-config-lab) - ultra-low-latency flags and kill switches
+  * [Redis Cache Lab](/docs/experiments/redis-cache-lab) - TTL cache and distributed rate limits on Upstash Redis
+  * [Cron Jobs Lab](/docs/experiments/cron-jobs-lab) - Vercel Cron schedules with Redis or Blob heartbeats
+  * [Neon Postgres Lab](/docs/experiments/neon-postgres-lab) - serverless Postgres from the Vercel Marketplace
+* **One-click Deploy** - Deploy buttons provision Blob, Upstash Redis, and Neon stores where needed
+* **Honest degradation** - demos report missing Marketplace services instead of inventing results
+* **Introduction index** - the [Introduction](/docs#experiment-categories) page lists every experiment by category
+
+## October 11, 2026 - Initial catalog
+
+* **Initial public catalog** - deployable experiments and this docs hub, covering AI, performance, networking, security, rendering, routing, platform, and developer tools
+* **Featured labs**, including:
+  * [AI Streaming Lab](/docs/experiments/ai-streaming-lab) - stream text and tools through AI Gateway
+  * [Webhook Playground](/docs/experiments/webhook-playground) - capture, inspect, and replay webhook traffic
+  * [Cache Behavior Explorer](/docs/experiments/cache-behavior-explorer) - hits, misses, and Cache-Control strategies
+  * [OG Image Studio](/docs/experiments/og-image-studio) - Open Graph cards with `ImageResponse`
+  * [Rate Limiting Simulator](/docs/experiments/rate-limiting-simulator) - token bucket and sliding window demos
+  * [Middleware and Routing Lab](/docs/experiments/middleware-routing-lab) - rewrites, redirects, and header routing
+  * [Streaming SSR Playground](/docs/experiments/streaming-ssr-playground) - progressive HTML with Suspense
+  * [ISR and Revalidation Playground](/docs/experiments/isr-revalidation-playground) - on-demand and time-based revalidation
+  * [Image Optimization Lab](/docs/experiments/image-optimization-lab) - `next/image` quality and format tradeoffs
+  * [AI Code Sandbox](/docs/experiments/ai-code-sandbox) - gated arithmetic execution (no unrestricted eval)
+  * and more under each category in the sidebar
+* **Docs foundation** - Getting started, local development, adding an experiment, conventions, and contributing guides

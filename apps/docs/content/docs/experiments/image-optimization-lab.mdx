@@ -1,0 +1,293 @@
+---
+title: Image Optimization Lab
+description: Tune next/image quality and sizes against a real optimized asset, plus format heuristics.
+---
+
+<ExperimentEmbed slug="image-optimization-lab" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+The Image Optimization Lab is a client-only experiment that pairs a live `next/image` preview with the responsive attributes you would otherwise write by hand: `srcset`, `sizes`, `width`, `height`, and `quality`. It is built with Next.js `next/image`, React state, and a small set of pure TypeScript helpers in `apps/experiments/image-optimization-lab/logic.ts`.
+
+It teaches how display width, quality, and responsive hints relate to image transfer size, and why you should let the framework generate the real variants. Two parts of the page are different in kind, and the UI labels them accordingly:
+
+- **The preview is real.** It renders `next/image`, which uses Vercel Image Optimization in production.
+- **The byte table and generated `srcset` text are teaching heuristics.** They are calculated locally and are not measured CDN output.
+
+## Features
+
+- Live `next/image` preview with `priority`, `sizes`, and `quality` driven by your inputs.
+- Display width slider (320–2400 px, step 40) and quality slider (40–100).
+- Editable sample path (local paths beginning with `/`).
+- Generated `srcSet` and `sizes` attribute text.
+- Heuristic transfer-size table comparing AVIF, WebP, and JPEG at the chosen width and quality.
+- Copyable `next/image` snippet that follows your width and quality.
+- Reset button that restores width `1200`, quality `75`, and `/demo-hero.svg`.
+
+## UI Reference
+
+This experiment has no API routes. All controls are client-side.
+
+<TypeTable
+  type={{
+    "Display width (px)": {
+      description:
+        "Slider from 320 to 2400 in steps of 40. Feeds the heuristic byte table and the generated snippet. The live preview caps its width at 1200.",
+      type: "number",
+      default: "1200",
+    },
+    Quality: {
+      description:
+        "Slider from 40 to 100. Passed to next/image as quality and used as a multiplier in the byte estimate.",
+      type: "number",
+      default: "75",
+    },
+    "Sample path": {
+      description:
+        "Image source for the preview. Only values starting with / are used; anything else falls back to /demo-hero.svg.",
+      type: "string",
+      default: "/demo-hero.svg",
+    },
+  }}
+/>
+
+The only image shipped with the experiment is `public/demo-hero.svg` (1600 x 900).
+
+## Implementation Details
+
+### Flow
+
+<Steps>
+<Step>
+
+### Render the real image
+
+The preview passes your values straight to `next/image`. Width is capped at 1200 and height is derived from a 16:9 aspect ratio.
+
+```tsx
+<Image
+  src={path.startsWith('/') ? path : '/demo-hero.svg'}
+  alt="Optimized demo hero"
+  width={Math.min(width, 1200)}
+  height={Math.round((Math.min(width, 1200) * 9) / 16)}
+  quality={quality}
+  sizes={sizes}
+  className="h-auto w-full object-cover"
+  priority
+/>
+```
+
+</Step>
+<Step>
+
+### Build the `sizes` attribute
+
+`buildSizesAttribute` sorts breakpoints from widest to narrowest and appends `100vw` as the default. The demo uses two breakpoints.
+
+```ts
+export function buildSizesAttribute(breakpoints: { minWidth: number; size: string }[]): string {
+  const parts = breakpoints
+    .filter((b) => b.minWidth >= 0)
+    .sort((a, b) => b.minWidth - a.minWidth)
+    .map((b) => `(min-width: ${b.minWidth}px) ${b.size}`);
+  parts.push('100vw');
+  return parts.join(', ');
+}
+```
+
+For `[{ minWidth: 1024, size: '50vw' }, { minWidth: 640, size: '75vw' }]` the result is:
+
+```text
+(min-width: 1024px) 50vw, (min-width: 640px) 75vw, 100vw
+```
+
+</Step>
+<Step>
+
+### Generate illustrative `srcset` text
+
+`computeSrcSet` produces a `?w=` style list for the widths `640, 828, 1080, 1200, 1920`.
+
+```ts
+export function computeSrcSet(basePath: string, widths: number[]): string {
+  const sorted = [...widths].filter((w) => w > 0).sort((a, b) => a - b);
+  return sorted.map((w) => `${basePath}?w=${w} ${w}w`).join(', ');
+}
+```
+
+```text
+/demo-hero.svg?w=640 640w, /demo-hero.svg?w=828 828w, /demo-hero.svg?w=1080 1080w, /demo-hero.svg?w=1200 1200w, /demo-hero.svg?w=1920 1920w
+```
+
+This is a display of the pattern, not the URL list Next.js actually emits. `next/image` generates its own `srcset` that points at the `/_next/image` endpoint.
+
+</Step>
+<Step>
+
+### Estimate bytes by format
+
+`estimateBytes` multiplies pixel count by a per-format factor and by quality.
+
+```ts
+const FORMAT_FACTOR: Record<ImageFormat, number> = {
+  avif: 0.07,
+  webp: 0.11,
+  jpeg: 0.22,
+};
+
+export function estimateBytes(
+  width: number,
+  format: ImageFormat,
+  quality: number,
+  aspectRatio = 16 / 9,
+): number {
+  const w = Math.max(1, Math.floor(width));
+  const h = Math.max(1, Math.floor(w / aspectRatio));
+  const q = Math.min(100, Math.max(1, quality)) / 100;
+  const pixels = w * h;
+  return Math.round(pixels * FORMAT_FACTOR[format] * q);
+}
+```
+
+At the defaults (1200 px, quality 75) the table shows `42,525 B` for AVIF, `66,825 B` for WebP, and `133,650 B` for JPEG (computed from the formulas above). The factors are invented teaching constants; real sizes depend on image content, encoder, and browser support.
+
+</Step>
+</Steps>
+
+## Use Cases
+
+- Explaining to a team why `sizes` matters and what `100vw` as a fallback means.
+- Showing how raising quality changes the heuristic cost, and discussing when a higher value is worth it.
+- Comparing the relative savings of modern formats (AVIF, WebP) over JPEG as a conversation starter.
+- Prototyping the props for a hero image before applying them in your own layout.
+
+## Limitations
+
+Security note from the registry:
+
+- Heuristic byte estimates remain illustrative; the preview uses real `next/image`.
+
+Limits and behaviors taken from the code and configuration:
+
+- **The bundled sample is an SVG.** Per the [Next.js `next/image` docs](https://nextjs.org/docs/app/api-reference/components/image#unoptimized), Next.js does not optimize SVG images and treats a `src` ending in `.svg` as `unoptimized`. With the default `/demo-hero.svg` the preview is a real `next/image` render, but width and quality changes do not re-encode the file. To see the optimizer resize and re-encode, add a raster image (for example a JPEG or PNG) to `public/` and enter its path in **Sample path**.
+- **Quality allowlist.** `next.config.mjs` does not configure `images`. In Next.js 16 `images.qualities` defaults to `[75]`, and a `quality` outside the list is coerced to the closest allowed entry (development logs a warning). If you want sliders to produce distinct qualities for raster images, add a `qualities` list such as `[40, 60, 75, 90, 100]` to your own config.
+- **`priority` is deprecated.** The preview uses `priority`, which Next.js 16 deprecates in favor of `preload` (see [`preload`](https://nextjs.org/docs/app/api-reference/components/image#preload)). The Next.js docs recommend `loading="eager"` or `fetchPriority="high"` in most cases. The snippet below uses `fetchPriority="high"` for an above-the-fold image.
+- **Local paths only.** The sample path must start with `/`. Remote URLs are not accepted by the preview and would also require `images.remotePatterns`.
+- **Preview width cap.** The preview never renders wider than 1200 px even when the slider is higher. The slider still affects the byte table and snippet.
+- **Heuristic only.** The byte table does not request AVIF, WebP, or JPEG variants. Actual format negotiation depends on the browser `Accept` header and your `images.formats` configuration.
+- **Snippet differs from the preview.** The copyable snippet from `nextImageExample` uses `sizes="(min-width: 768px) 50vw, 100vw"` and your width/quality, while the preview uses the two-breakpoint `sizes` shown above.
+
+## Use in your project
+
+Minimal helper plus component adapted from the experiment:
+
+```tsx
+// components/responsive-hero.tsx
+import Image from 'next/image';
+
+type Breakpoint = { minWidth: number; size: string };
+
+export function buildSizesAttribute(breakpoints: Breakpoint[]): string {
+  const parts = [...breakpoints]
+    .sort((a, b) => b.minWidth - a.minWidth)
+    .map((b) => `(min-width: ${b.minWidth}px) ${b.size}`);
+  parts.push('100vw');
+  return parts.join(', ');
+}
+
+const sizes = buildSizesAttribute([
+  { minWidth: 1024, size: '50vw' },
+  { minWidth: 640, size: '75vw' },
+]);
+
+export function ResponsiveHero() {
+  return (
+    <Image
+      src="/hero.jpg"
+      alt="Hero"
+      width={1200}
+      height={675}
+      quality={75}
+      sizes={sizes}
+      className="h-auto w-full object-cover"
+      fetchPriority="high"
+    />
+  );
+}
+```
+
+```ts
+// next.config.ts - allow the quality values you actually use
+import type { NextConfig } from 'next';
+
+const config: NextConfig = {
+  images: {
+    qualities: [60, 75, 90],
+  },
+};
+
+export default config;
+```
+
+## Deployment
+
+<ExperimentDeployButton slug="image-optimization-lab" />
+
+
+The registered Deploy button for this experiment is the platform button, which clones the repository and offers Vercel Blob, Upstash Redis, and Neon Postgres stores plus the `AI_GATEWAY_API_KEY` and `NEXT_PUBLIC_SITE_URL` environment prompts. This experiment itself uses none of those. Its only external dependency is **Vercel Image Optimization**, which is provided by the platform when deployed. Use the Deploy button on this experiment page.
+
+## Local Development
+
+```bash
+pnpm install
+pnpm dev
+```
+
+Then open the experiment page. During `next dev`, images are served through the local `/_next/image` endpoint, so optimization behavior is similar in kind but not identical to Vercel's production pipeline. You can inspect the response of the optimizer directly for a raster image you add to `public/`:
+
+```bash
+curl -I "http://localhost:3000/_next/image?url=%2Fhero.jpg&w=1080&q=75"
+```
+
+Unit tests for the helpers live in `apps/experiments/image-optimization-lab/logic.test.ts`:
+
+```bash
+pnpm test
+```
+
+## Configuration
+
+| Item | Required | Notes |
+| --- | --- | --- |
+| Environment variables | No | None are read by this experiment. |
+| External services | Vercel Image Optimization (when deployed) | Provided by the platform for `next/image`. |
+| `images` in `next.config` | Optional | Not set in this repo; configure `qualities`, `formats`, or `remotePatterns` for your own app. |
+
+## Vercel / Next.js Features Used
+
+- [`next/image`](https://nextjs.org/docs/app/api-reference/components/image) - `width`, `height`, `quality`, `sizes`, and `priority`.
+- [Image optimization guide](https://nextjs.org/docs/app/getting-started/images) - responsive images and formats in the App Router.
+- [Vercel Image Optimization](https://vercel.com/docs/image-optimization) - the production pipeline behind `next/image` on Vercel.
+- `public/` static assets - the sample `demo-hero.svg` is served from here.
+
+## Next Steps
+
+<Cards>
+  <Card
+    title="OG Image Studio"
+    href="/docs/experiments/og-image-studio"
+    description="Design Open Graph cards with ImageResponse."
+  />
+  <Card
+    title="Blob Storage Lab"
+    href="/docs/experiments/blob-storage-lab"
+    description="Upload and serve objects with Vercel Blob."
+  />
+  <Card
+    title="next/image reference"
+    href="https://nextjs.org/docs/app/api-reference/components/image"
+    description="Official props and configuration for next/image."
+  />
+</Cards>

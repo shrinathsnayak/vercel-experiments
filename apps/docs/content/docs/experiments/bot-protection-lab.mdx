@@ -1,0 +1,90 @@
+---
+title: Bot Protection Lab
+description: "Challenge and rate-limit gate before a mock expensive AI route, with honest BotID documentation limits."
+---
+
+<ExperimentEmbed slug="bot-protection-lab" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+This lab teaches a **challenge + rate-limit** gate in front of a mock expensive AI route. It deliberately does **not** integrate Vercel BotID - production BotID is a separate platform product. The demo scores client signals educationally and blocks before mock inference work.
+
+## Features
+
+- Issue short-lived math challenges
+- Single-use challenge consumption
+- Per-IP rate limit on the expensive route
+- Educational bot score from UA/latency/answer
+- Clear allow/block UI with JSON details
+
+## API Reference
+
+### POST /api/challenge
+
+Issues `{ challengeId, question, expiresAt }`.
+
+### POST /api/expensive
+
+Body: `{ challengeId, answer, issuedAt?, prompt? }`. Returns allow/block, score, and mock AI output when allowed.
+
+## Implementation Details
+
+<Files>
+  <Folder name="apps/experiments/bot-protection-lab" defaultOpen>
+    <File name="demo.tsx" />
+    <File name="logic.ts" />
+    <File name="logic.test.ts" />
+  </Folder>
+</Files>
+
+Pure helpers in `logic.ts` score signals and evaluate gate reasons. `lib/challenge-store.ts` holds in-memory challenges and fixed-window rate limits (process-local).
+
+## Use Cases
+
+- Gate costly inference routes
+- Teach BotID vs app-level challenges
+- Combine with platform BotID later
+
+## Limitations
+
+- Not Vercel BotID - do not present the score as platform bot detection.
+- In-memory challenge store resets on cold start.
+- Math challenge is educational, not CAPTCHA-grade.
+
+## Use in your project
+
+Deploy or copy `apps/experiments/bot-protection-lab/` and adapt the Route Handlers and pure helpers in `logic.ts`. Keep honest fallbacks when optional services are missing.
+
+## Deployment
+
+<ExperimentDeployButton slug="bot-protection-lab" />
+
+## Local Development
+
+```bash
+cd apps/experiments/bot-protection-lab
+pnpm install
+pnpm dev
+```
+
+Open http://localhost:3010
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `UPSTASH_REDIS_REST_URL` | No | Optional Redis |
+| `UPSTASH_REDIS_REST_TOKEN` | No | Optional Redis |
+
+## Vercel / Next.js Features Used
+
+- Route Handlers
+- Rate limiting patterns
+
+## Next Steps
+
+- Explore related labs from the registry `relatedSlugs`
+- Harden secrets, auth, and input limits before production
+- Prefer platform primitives when you outgrow demo patterns

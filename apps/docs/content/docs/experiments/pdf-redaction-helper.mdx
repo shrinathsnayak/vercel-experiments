@@ -1,0 +1,90 @@
+---
+title: PDF Redaction Helper
+description: Paste text - AI suggests PII spans to review. Educational helper — not perfect redaction.
+---
+
+<ExperimentEmbed slug="pdf-redaction-helper" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects. Suggestions only — never claim perfect redaction.
+</Callout>
+
+PDF Redaction Helper is a Wave 3 Batch H composition lab. Pure helpers live in `logic.ts`; missing providers or stores degrade honestly (never fabricate AI output).
+
+## Features
+
+- Suggest PII spans with types
+- Local highlight preview helpers
+- Explicit imperfect-redaction caveat
+
+## Server Reference
+
+### `POST /api/redact`
+
+```json
+{ "text": "Contact Jane Doe at jane@acme.io" }
+```
+
+| Status | Cause |
+| --- | --- |
+| `200` | Success |
+| `400` | Missing text |
+| `503` | No AI provider |
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### Validate
+
+Inputs are length-capped in `logic.ts`; APIs return `400` for missing fields.
+
+</Step>
+<Step>
+
+### Run
+
+Route Handlers compose AI SDK, Redis/Neon, or `ImageResponse` as documented. Fallbacks include honest notes.
+
+</Step>
+</Steps>
+
+## Limitations
+
+- Not a compliance-certified redaction product.
+- Models miss and invent spans — always review.
+- No binary PDF rewrite in this lab.
+
+## Use in your project
+
+Copy the Route Handler(s) and `logic.ts` from `apps/experiments/pdf-redaction-helper/`.
+
+## Deployment
+
+<ExperimentDeployButton slug="pdf-redaction-helper" />
+
+## Local Development
+
+```bash
+cd apps/experiments/pdf-redaction-helper
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `AI_GATEWAY_API_KEY` | Yes (or OpenAI) | Preferred AI provider |
+
+## Next Steps
+
+<Cards>
+  <Card title="Contract Clause Finder" href="/docs/experiments/contract-clause-finder">
+    Related experiment.
+  </Card>
+  <Card title="Policy Simplifier Lab" href="/docs/experiments/policy-simplifier-lab">
+    Related experiment.
+  </Card>
+</Cards>

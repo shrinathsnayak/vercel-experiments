@@ -1,0 +1,118 @@
+---
+title: Image Alt Studio
+description: Upload an image - vision generateObject for alt text, SEO filename, and caption; optional Blob store.
+---
+
+<ExperimentEmbed slug="image-alt-studio" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+Image Alt Studio accepts a multipart image upload and uses vision `generateObject` for `{ alt, seoFilename, caption }`. When `BLOB_READ_WRITE_TOKEN` is set, the file is also stored in Vercel Blob; otherwise the demo skips Blob and notes it. Missing AI keys return `503`.
+
+## Features
+
+- **Vision structured output** – alt, SEO filename stem, caption.
+- **Optional Blob store** – upload when token present.
+- **Filename sanitize** – kebab-case stem helper in `logic.ts`.
+- **4MB size cap** – oversized images return 400.
+- **Honest `503`** when AI is unavailable.
+
+## Server Reference
+
+### `POST /api/alt`
+
+`multipart/form-data` with image `file` (PNG/JPEG/WebP/GIF, max 4MB).
+
+#### Success (`200`)
+
+```json
+{
+  "alt": "A laptop showing a terminal",
+  "seoFilename": "laptop-terminal",
+  "caption": "Shipping demos from the CLI.",
+  "blobUrl": "https://...",
+  "blobStored": true,
+  "provider": "ai-gateway"
+}
+```
+
+| Status | Cause |
+| --- | --- |
+| `503` | No AI provider |
+| `400` | Missing/invalid/oversized image |
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### Vision generateObject
+
+AI SDK image part + Zod schema.
+
+</Step>
+<Step>
+
+### Optional put()
+
+`@vercel/blob` under `experiments/image-alt-studio/`.
+
+</Step>
+</Steps>
+
+## Use Cases
+
+- Learn composition patterns for this lab’s stack.
+- Prototype before wiring production auth and quotas.
+- Deploy the standalone app as a reference implementation.
+
+## Limitations
+
+- Demo-scale caps on input size and output counts.
+- No auth / rate limits on public deploys.
+- Model quality depends on input clarity.
+
+## Use in your project
+
+Copy the Route Handler and `logic.ts` helpers from `apps/experiments/image-alt-studio/`. Wire your own persistence and auth as needed.
+
+## Deployment
+
+<ExperimentDeployButton slug="image-alt-studio" />
+
+## Local Development
+
+```bash
+cd apps/experiments/image-alt-studio
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `AI_GATEWAY_API_KEY` | Yes (or `OPENAI_API_KEY`) | Preferred provider |
+| `OPENAI_API_KEY` | No | Fallback |
+| `AI_MODEL` | No | Model override |
+| `BLOB_READ_WRITE_TOKEN` | No | Optional Blob upload |
+
+## Vercel / Next.js Features Used
+
+- AI SDK vision `generateObject`
+- Vercel Blob
+- Route Handlers
+- Zod
+
+## Next Steps
+
+<Cards>
+  <Card title="Receipt to JSON Lab" href="/docs/experiments/receipt-to-json-lab">
+    Vision + structured expenses.
+  </Card>
+  <Card title="Blob Storage Lab" href="/docs/experiments/blob-storage-lab">
+    Upload / list / delete primitives.
+  </Card>
+</Cards>

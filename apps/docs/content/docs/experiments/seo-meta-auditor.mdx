@@ -1,0 +1,110 @@
+---
+title: SEO Meta Auditor
+description: Fetch a URL, find meta gaps, rewrite title/description/OG suggestions, and preview an ImageResponse card.
+---
+
+<ExperimentEmbed slug="seo-meta-auditor" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+SEO Meta Auditor fetches a page (capped), extracts title/description/canonical/OG tags, computes local gaps, rewrites suggestions via `generateObject`, and exposes `/api/og` for an ImageResponse preview.
+
+## Features
+
+- **Meta extraction + local gaps** – title/description/canonical/OG
+- **Rewritten suggestions** – title / description / OG fields
+- **ImageResponse OG** – `/api/og?title=&description=`
+
+## Server Reference
+
+### `POST /api/audit`
+
+```json
+{ "url": "https://vercel.com/docs" }
+```
+
+| Status | Cause |
+| --- | --- |
+| `503` | No AI provider |
+| `400` | Validation / upstream / empty input |
+
+### `GET /api/og`
+
+Query: `title`, `description`. Returns a 1200×630 PNG via `ImageResponse`.
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### Pure helpers in `logic.ts`
+
+Caps, parsers, and clamps live in the experiment folder and are covered by `logic.test.ts`.
+
+</Step>
+<Step>
+
+### Route Handler
+
+`POST /api/audit` validates input, applies fetch/parse limits where relevant, then returns JSON from `generateObject`.
+
+</Step>
+</Steps>
+
+## Use Cases
+
+- Learn composition patterns for this lab’s stack.
+- Prototype before wiring production auth and quotas.
+- Deploy the standalone app as a reference implementation.
+
+## Limitations
+
+- Demo-scale caps on input size and output counts.
+- No auth / rate limits on public deploys.
+- Model quality depends on input clarity.
+- Treat outputs as drafts, not production truth.
+
+## Use in your project
+
+Copy the Route Handler and `logic.ts` helpers from `apps/experiments/seo-meta-auditor/`. Wire your own persistence and auth as needed.
+
+## Deployment
+
+<ExperimentDeployButton slug="seo-meta-auditor" />
+
+## Local Development
+
+```bash
+cd apps/experiments/seo-meta-auditor
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `AI_GATEWAY_API_KEY` | Yes (or `OPENAI_API_KEY`) | Preferred provider |
+| `OPENAI_API_KEY` | No | Fallback |
+| `AI_MODEL` | No | Model override |
+
+## Vercel / Next.js Features Used
+
+- Route Handlers
+- Zod
+- AI SDK `generateObject`
+- `next/og` `ImageResponse`
+
+
+## Next Steps
+
+<Cards>
+  <Card title="URL Brief Lab" href="/docs/experiments/url-brief-lab">
+    Related experiment.
+  </Card>
+  <Card title="OG Image Studio" href="/docs/experiments/og-image-studio">
+    Related experiment.
+  </Card>
+</Cards>

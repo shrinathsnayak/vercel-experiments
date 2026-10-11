@@ -1,0 +1,109 @@
+---
+title: API Mock from OpenAPI
+description: Paste an OpenAPI snippet - mock Next.js Route Handler stubs as downloadable text.
+---
+
+<ExperimentEmbed slug="api-mock-from-openapi" />
+
+<Callout type="warning">
+  This is an experimental demo. Generated stubs are mocks, not production handlers.
+</Callout>
+
+API Mock from OpenAPI turns an OpenAPI YAML/JSON snippet into Next.js App Router Route Handler stubs via `generateObject`. The UI lists method/path mappings and downloads a concatenated stubs file. No AI keys - `503`.
+
+## Features
+
+- **OpenAPI paste** – YAML or JSON sample products API.
+- **Route list** – method, path, handler filename.
+- **Download stubs** – single text file of mock handlers.
+- **Cap 12 operations**.
+- **Honest unavailable state**.
+
+## Server Reference
+
+### `POST /api/mock`
+
+```json
+{ "openapi": "openapi: 3.0.3\n..." }
+```
+
+#### Success (`200`)
+
+```json
+{
+  "summary": "Mocks for Products API list/create/get.",
+  "routes": [
+    {
+      "method": "GET",
+      "path": "/api/products",
+      "handlerFilename": "app/api/products/route.ts",
+      "stubSource": "export async function GET() { ... }"
+    }
+  ],
+  "downloadText": "// GET /api/products\n...",
+  "provider": "ai-gateway"
+}
+```
+
+| Status | Cause |
+| --- | --- |
+| `503` | No AI provider |
+| `400` | Empty openapi |
+
+## Implementation Details
+
+`clampBundle` rebuilds `downloadText` if the model leaves it empty.
+
+## Use Cases
+
+- Bootstrap mock handlers from a spec.
+- Teach OpenAPI - App Router mapping.
+- Offline API demos.
+
+## Limitations
+
+- Stubs are not type-checked or wired into the app.
+- Complex `$ref` graphs may be incomplete.
+- No auth / rate limits.
+
+## Use in your project
+
+Copy the download helper and stub schema; paste files into `app/api` manually after review.
+
+## Deployment
+
+<ExperimentDeployButton slug="api-mock-from-openapi" />
+
+## Local Development
+
+```bash
+cd apps/experiments/api-mock-from-openapi
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `AI_GATEWAY_API_KEY` | Yes (or `OPENAI_API_KEY`) | Preferred provider |
+| `OPENAI_API_KEY` | No | Fallback |
+| `AI_MODEL` | No | Model override |
+
+## Vercel / Next.js Features Used
+
+- AI SDK `generateObject`
+- Vercel AI Gateway
+- Route Handlers
+- Zod
+
+## Next Steps
+
+<Cards>
+  <Card title="Codebase README Lab" href="/docs/experiments/codebase-readme-lab">
+    Tree + snippets - README draft.
+  </Card>
+  <Card title="Webhook Playground" href="/docs/experiments/webhook-playground">
+    Capture and inspect HTTP callbacks.
+  </Card>
+</Cards>

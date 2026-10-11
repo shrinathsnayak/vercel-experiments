@@ -1,0 +1,33 @@
+---
+title: Experiment conventions
+description: Standards every published experiment should meet.
+---
+
+## Product rules
+
+- Solve one clear problem.
+- Prefer real behavior over theater.
+- Label simulations explicitly.
+- Keep secrets server-side.
+- Distinguish Next.js features from Vercel-specific capabilities.
+
+## Docs SEO
+
+- Keep MDX frontmatter `title` and `description` aligned with `lib/experiments/data.ts`.
+- Registry `description` is the SEO snippet (max 280 chars); docs metadata, OG cards, and TechArticle JSON-LD prefer it.
+- List every experiment docs path in `content/docs/meta.json` so it appears in the sidebar and sitemap discovery.
+
+## Code rules
+
+- Validate untrusted input with Zod.
+- Isolate demo failures so one broken experiment cannot crash the directory.
+- Lazy-load demos through the registry loader map.
+- Provide loading, empty, and error states.
+- Document environment variables and external services honestly.
+
+## Accessibility
+
+- Keyboard operable controls
+- Visible focus states
+- Accessible names and live announcements for important async updates
+- Honor `prefers-reduced-motion`

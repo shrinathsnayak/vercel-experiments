@@ -1,0 +1,90 @@
+---
+title: Before After Diff Lab
+description: Two images - vision change summary (what changed, risk notes). Honest 503 without AI.
+---
+
+<ExperimentEmbed slug="before-after-diff-lab" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+Before After Diff Lab is a Wave 3 Batch H composition lab. Pure helpers live in `logic.ts`; missing providers or stores degrade honestly (never fabricate AI output).
+
+## Features
+
+- Two-image vision diff
+- Structured change list
+- Honest 503
+
+## Server Reference
+
+### `POST /api/diff`
+
+```json
+multipart: before=<image>&after=<image>
+```
+
+| Status | Cause |
+| --- | --- |
+| `200` | Success |
+| `400` | Missing images |
+| `503` | No AI provider |
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### Validate
+
+Inputs are length-capped in `logic.ts`; APIs return `400` for missing fields.
+
+</Step>
+<Step>
+
+### Run
+
+Route Handlers compose AI SDK, Redis/Neon, or `ImageResponse` as documented. Fallbacks include honest notes.
+
+</Step>
+</Steps>
+
+## Limitations
+
+- Not pixel-perfect QA.
+- 4MB per image.
+- Model may miss subtle diffs.
+
+## Use in your project
+
+Copy the Route Handler(s) and `logic.ts` from `apps/experiments/before-after-diff-lab/`.
+
+## Deployment
+
+<ExperimentDeployButton slug="before-after-diff-lab" />
+
+## Local Development
+
+```bash
+cd apps/experiments/before-after-diff-lab
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `AI_GATEWAY_API_KEY` | Yes (or OpenAI) | Preferred AI provider |
+
+## Next Steps
+
+<Cards>
+  <Card title="Competitor Page Diff" href="/docs/experiments/competitor-page-diff">
+    Related experiment.
+  </Card>
+  <Card title="Screenshot To Ticket" href="/docs/experiments/screenshot-to-ticket">
+    Related experiment.
+  </Card>
+</Cards>

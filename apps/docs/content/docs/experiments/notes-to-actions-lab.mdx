@@ -1,0 +1,130 @@
+---
+title: Notes to Actions Lab
+description: Paste meeting notes - generateObject action items with owner/due/status; persist to Neon or an in-memory session list.
+---
+
+<ExperimentEmbed slug="notes-to-actions-lab" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+Notes to Actions Lab extracts `{ title, owner?, due?, status }` items via `generateObject`, then persists them to Neon (`experiment_actions`) when `DATABASE_URL` is set. Without Postgres it keeps an in-memory session list and shows a UI note. Toggle status with `PATCH`. Missing AI keys return `503`.
+
+## Features
+
+- **Meeting notes - actions** – capped notes (~12k chars), up to 20 items.
+- **Neon or memory** – `experiment_actions` table when configured; honest in-memory fallback.
+- **Status toggle** – mark done / reopen without regenerating.
+- **Sample standup notes** – prefilled owners and dues.
+- **Honest `503`** when AI Gateway / OpenAI is not configured.
+
+## Server Reference
+
+### `POST /api/actions`
+
+```json
+{ "notes": "..." }
+```
+
+#### Success (`200`)
+
+```json
+{
+  "actions": [
+    { "id": "a-1", "title": "Ship docs", "owner": "Alex", "due": "Friday", "status": "open" }
+  ],
+  "storage": "neon",
+  "provider": "ai-gateway"
+}
+```
+
+### `GET /api/actions`
+
+Lists persisted actions (`storage: neon | memory`).
+
+### `PATCH /api/actions`
+
+```json
+{ "id": "a-1", "status": "done" }
+```
+
+| Status | Cause |
+| --- | --- |
+| `503` | No AI provider (POST) |
+| `400` | Empty notes / invalid patch |
+| `404` | Unknown action id |
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### Truncate + generateObject
+
+`truncateText` then Zod schema for actions.
+
+</Step>
+<Step>
+
+### Persist
+
+Neon upsert into `experiment_actions`, else module-level `Map`.
+
+</Step>
+</Steps>
+
+## Use Cases
+
+- Learn composition patterns for this lab’s stack.
+- Prototype before wiring production auth and quotas.
+- Deploy the standalone app as a reference implementation.
+
+## Limitations
+
+- Demo-scale caps on input size and output counts.
+- No auth / rate limits on public deploys.
+- Model quality depends on input clarity.
+
+## Use in your project
+
+Copy the Route Handler and `logic.ts` helpers from `apps/experiments/notes-to-actions-lab/`. Wire your own persistence and auth as needed.
+
+## Deployment
+
+<ExperimentDeployButton slug="notes-to-actions-lab" />
+
+## Local Development
+
+```bash
+cd apps/experiments/notes-to-actions-lab
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `AI_GATEWAY_API_KEY` | Yes (or `OPENAI_API_KEY`) | Preferred provider |
+| `OPENAI_API_KEY` | No | Fallback |
+| `AI_MODEL` | No | Model override |
+| `DATABASE_URL` | No | Neon persistence |
+
+## Vercel / Next.js Features Used
+
+- AI SDK `generateObject`
+- Neon serverless Postgres
+- Route Handlers
+- Zod
+
+## Next Steps
+
+<Cards>
+  <Card title="Neon Postgres Lab" href="/docs/experiments/neon-postgres-lab">
+    Marketplace Postgres primitives.
+  </Card>
+  <Card title="Flashcards from Notes" href="/docs/experiments/flashcards-from-notes">
+    Notes - structured cards.
+  </Card>
+</Cards>

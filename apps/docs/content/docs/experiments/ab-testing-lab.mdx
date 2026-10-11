@@ -1,0 +1,91 @@
+---
+title: A/B Testing Lab
+description: "Assign A/B variants via sticky cookie, log impressions and conversions in Redis or memory, and show conversion UI."
+---
+
+<ExperimentEmbed slug="ab-testing-lab" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+Assign visitors to variant A or B with a sticky `ve-ab` cookie, record impressions and conversions, and show conversion rates. Redis backs the funnel when configured; otherwise memory is used honestly.
+
+## Features
+
+- Sticky A/B cookie assignment
+- Impression + conversion tracking
+- Conversion rate display per variant
+- Redis or memory backend
+- Reset controls for demos
+
+## API Reference
+
+### GET /api/ab
+
+Current funnel stats.
+
+### POST /api/ab
+
+Actions: `assign`, `convert`, `stats`, `reset`.
+
+## Implementation Details
+
+<Files>
+  <Folder name="apps/experiments/ab-testing-lab" defaultOpen>
+    <File name="demo.tsx" />
+    <File name="logic.ts" />
+    <File name="logic.test.ts" />
+  </Folder>
+</Files>
+
+`assignAb` and `recordEvent` are pure. `lib/ab-store.ts` uses Redis hashes when available.
+
+## Use Cases
+
+- Simple cookie A/B tests
+- Teaching experimentation funnels
+- Comparing with Flags SDK labs
+
+## Limitations
+
+- Not statistically rigorous - teaching funnel only.
+- Memory backend resets on cold start.
+- No multivariate or holdout analysis.
+
+## Use in your project
+
+Deploy or copy `apps/experiments/ab-testing-lab/` and adapt the Route Handlers and pure helpers in `logic.ts`. Keep honest fallbacks when optional services are missing.
+
+## Deployment
+
+<ExperimentDeployButton slug="ab-testing-lab" />
+
+## Local Development
+
+```bash
+cd apps/experiments/ab-testing-lab
+pnpm install
+pnpm dev
+```
+
+Open http://localhost:3010
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `UPSTASH_REDIS_REST_URL` | No | Optional Redis |
+| `UPSTASH_REDIS_REST_TOKEN` | No | Optional Redis |
+
+## Vercel / Next.js Features Used
+
+- Route Handlers
+- Cookies
+- Upstash Redis (optional)
+
+## Next Steps
+
+- Explore related labs from the registry `relatedSlugs`
+- Harden secrets, auth, and input limits before production
+- Prefer platform primitives when you outgrow demo patterns

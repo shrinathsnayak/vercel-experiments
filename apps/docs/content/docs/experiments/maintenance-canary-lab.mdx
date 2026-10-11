@@ -1,0 +1,95 @@
+---
+title: Maintenance / Canary Lab
+description: "Env or Global Config kill switch plus percentage canary cookie assignment with two UI variants and counters."
+---
+
+<ExperimentEmbed slug="maintenance-canary-lab" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+Combine a maintenance kill switch (`MAINTENANCE_MODE` env, Global Config-ready) with sticky percentage canary assignment. Real `proxy.ts` rewrites `/variant` and `/maintenance`; the demo UI also drives assignment + counters (Redis optional).
+
+## Features
+
+- Env kill switch - maintenance rewrite
+- Percentage canary with sticky cookie
+- Two concrete UI variants (control / canary)
+- Hit counters in Redis or memory
+- Simulator controls in the demo shell
+
+## API Reference
+
+### GET /api/canary
+
+Env snapshot + counters.
+
+### POST /api/canary
+
+Actions: `assign`, `hit`, `snapshot` with optional `maintenanceMode` / `canaryPercent`.
+
+## Implementation Details
+
+<Files>
+  <Folder name="apps/experiments/maintenance-canary-lab" defaultOpen>
+    <File name="demo.tsx" />
+    <File name="logic.ts" />
+    <File name="logic.test.ts" />
+  </Folder>
+</Files>
+
+`assignVariant` in `logic.ts` is pure and tested. `proxy.ts` applies maintenance rewrites and sticky `ve-canary` cookies for `/variant`.
+
+## Use Cases
+
+- Emergency maintenance pages
+- Percentage UI rollouts
+- Sticky cohort assignment
+
+## Limitations
+
+- Counters without Redis are per-instance.
+- Global Config is documented/optional - env drives the included proxy.
+- Canary percent uses Math.random on first assignment only.
+
+## Use in your project
+
+Deploy or copy `apps/experiments/maintenance-canary-lab/` and adapt the Route Handlers and pure helpers in `logic.ts`. Keep honest fallbacks when optional services are missing.
+
+## Deployment
+
+<ExperimentDeployButton slug="maintenance-canary-lab" />
+
+## Local Development
+
+```bash
+cd apps/experiments/maintenance-canary-lab
+pnpm install
+pnpm dev
+```
+
+Open http://localhost:3010
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `MAINTENANCE_MODE` | No | Kill switch |
+| `CANARY_PERCENT` | No | 0–100 canary share |
+| `GLOBAL_CONFIG` | No | Optional store |
+| `UPSTASH_REDIS_REST_URL` | No | Optional counters |
+| `UPSTASH_REDIS_REST_TOKEN` | No | Optional counters |
+
+## Vercel / Next.js Features Used
+
+- proxy.ts
+- Rewrites
+- Cookies
+- Upstash Redis (optional)
+
+## Next Steps
+
+- Explore related labs from the registry `relatedSlugs`
+- Harden secrets, auth, and input limits before production
+- Prefer platform primitives when you outgrow demo patterns

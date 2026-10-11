@@ -1,0 +1,83 @@
+---
+title: ISR Product Page
+description: Fake product pages with time-based revalidate plus an on-demand revalidatePath button.
+---
+
+<ExperimentEmbed slug="isr-product-page" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+Static product routes with `revalidate` and an on-demand `revalidatePath` control.
+
+## Features
+
+- Standalone Next.js app under `apps/experiments/isr-product-page/`.
+- Honest degradation when optional services are missing.
+- Unit-tested helpers in `logic.ts`.
+
+## API Reference
+
+### `POST /api/revalidate`
+
+```
+{ "slug": "aurora-mug" }
+```
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### Run the demo
+
+Use the embedded playground or `pnpm dev` in the experiment app.
+
+</Step>
+<Step>
+
+### Inspect the handlers
+
+Copy Route Handlers from `apps/experiments/isr-product-page/` into your project.
+
+</Step>
+</Steps>
+
+## Limitations
+
+- Educational demo — not a production-hardened product.
+- Inputs are length-capped.
+
+## Use in your project
+
+Copy the experiment folder or individual Route Handlers.
+
+## Deployment
+
+<ExperimentDeployButton slug="isr-product-page" />
+
+## Local Development
+
+```bash
+cd apps/experiments/isr-product-page
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| — | — | No required secrets |
+
+## Vercel / Next.js Features Used
+
+- Next.js, ISR, Cache
+
+## Next Steps
+
+<Cards>
+  <Card title="isr-revalidation-playground" href="/docs/experiments/isr-revalidation-playground">Related lab.</Card>
+  <Card title="og-from-database" href="/docs/experiments/og-from-database">Related lab.</Card>
+</Cards>

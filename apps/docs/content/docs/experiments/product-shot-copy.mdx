@@ -1,0 +1,90 @@
+---
+title: Product Shot Copy
+description: Product image - title/bullets via vision, plus optional ImageResponse OG card preview.
+---
+
+<ExperimentEmbed slug="product-shot-copy" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+Product Shot Copy is a Wave 3 Batch H composition lab. Pure helpers live in `logic.ts`; missing providers or stores degrade honestly (never fabricate AI output).
+
+## Features
+
+- Vision - title + bullets
+- Optional OG ImageResponse URL
+- Honest 503
+
+## Server Reference
+
+### `POST /api/copy · GET /api/og`
+
+```json
+multipart/form-data: file=<image>
+```
+
+| Status | Cause |
+| --- | --- |
+| `200` | Success |
+| `400` | Missing image |
+| `503` | No AI provider |
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### Validate
+
+Inputs are length-capped in `logic.ts`; APIs return `400` for missing fields.
+
+</Step>
+<Step>
+
+### Run
+
+Route Handlers compose AI SDK, Redis/Neon, or `ImageResponse` as documented. Fallbacks include honest notes.
+
+</Step>
+</Steps>
+
+## Limitations
+
+- Not a full PDP CMS.
+- 4MB cap.
+- OG uses generated text only.
+
+## Use in your project
+
+Copy the Route Handler(s) and `logic.ts` from `apps/experiments/product-shot-copy/`.
+
+## Deployment
+
+<ExperimentDeployButton slug="product-shot-copy" />
+
+## Local Development
+
+```bash
+cd apps/experiments/product-shot-copy
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `AI_GATEWAY_API_KEY` | Yes (or OpenAI) | Preferred AI provider |
+
+## Next Steps
+
+<Cards>
+  <Card title="Image Alt Studio" href="/docs/experiments/image-alt-studio">
+    Related experiment.
+  </Card>
+  <Card title="Og Image Studio" href="/docs/experiments/og-image-studio">
+    Related experiment.
+  </Card>
+</Cards>

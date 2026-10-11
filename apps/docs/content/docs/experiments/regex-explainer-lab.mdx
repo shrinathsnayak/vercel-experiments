@@ -1,0 +1,122 @@
+---
+title: Regex Explainer Lab
+description: Explain a regex in plain English (AI) and highlight matches in a test string with pure logic.ts helpers.
+---
+
+<ExperimentEmbed slug="regex-explainer-lab" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+Regex Explainer Lab splits responsibilities: `logic.ts` compiles the pattern and highlights matches (no AI), while `POST /api/explain` uses `generateObject` for plain-English explanation and token meanings. The UI shows live highlights even before you call the API. No AI keys - `503` for explain only; highlights still work client-side.
+
+## Features
+
+- **Local highlighting** – `highlightMatches` + `renderHighlightedHtml`.
+- **AI explanation** – overview, parts, caveats.
+- **Flags normalize** – always includes `g` for multi-match UI.
+- **Sample name regex** – title-case phrases.
+- **Honest unavailable state** for AI.
+
+## Server Reference
+
+### `POST /api/explain`
+
+```json
+{ "pattern": "\\d+", "flags": "g", "testString": "a12b" }
+```
+
+#### Success (`200`)
+
+```json
+{
+  "plainEnglish": "Matches one or more digits.",
+  "parts": [{ "token": "\\d+", "meaning": "one or more digits" }],
+  "caveats": ["Uses JavaScript RegExp semantics."],
+  "highlights": {
+    "ok": true,
+    "flags": "g",
+    "matches": [{ "start": 1, "end": 3, "text": "12", "index": 0 }]
+  },
+  "provider": "ai-gateway"
+}
+```
+
+| Status | Cause |
+| --- | --- |
+| `503` | No AI provider |
+| `400` | Invalid / empty pattern |
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### Highlight in logic.ts
+
+`highlightMatches` caps matches at 50 and escapes HTML for safe `dangerouslySetInnerHTML`.
+
+</Step>
+<Step>
+
+### Explain with generateObject
+
+Only runs after a successful local compile of the same pattern/flags.
+
+</Step>
+</Steps>
+
+## Use Cases
+
+- Teach regex with live match feedback.
+- Document patterns in plain English.
+- Unit-test highlighting without mocks.
+
+## Limitations
+
+- JS RegExp only (not PCRE / Rust regex).
+- Catastrophic backtracking is possible with hostile patterns.
+- No auth / rate limits.
+
+## Use in your project
+
+Import `highlightMatches` anywhere; keep AI explanation optional behind a Route Handler.
+
+## Deployment
+
+<ExperimentDeployButton slug="regex-explainer-lab" />
+
+## Local Development
+
+```bash
+cd apps/experiments/regex-explainer-lab
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `AI_GATEWAY_API_KEY` | Yes (or `OPENAI_API_KEY`) | Preferred provider for explain |
+| `OPENAI_API_KEY` | No | Fallback |
+| `AI_MODEL` | No | Model override |
+
+## Vercel / Next.js Features Used
+
+- AI SDK `generateObject`
+- Vercel AI Gateway
+- Route Handlers
+- Zod
+
+## Next Steps
+
+<Cards>
+  <Card title="Schema from Sample Lab" href="/docs/experiments/schema-from-sample-lab">
+    Sample - Zod / TS strings.
+  </Card>
+  <Card title="Flashcards from Notes" href="/docs/experiments/flashcards-from-notes">
+    Notes - structured cards.
+  </Card>
+</Cards>

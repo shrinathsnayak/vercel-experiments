@@ -1,0 +1,351 @@
+---
+title: Content Security Policy Builder
+description: Compose CSP directives and see which sample resources would be allowed or blocked.
+---
+
+<ExperimentEmbed slug="content-security-policy-builder" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+The Content Security Policy Builder lets you toggle source expressions for seven CSP fetch directives, generates the resulting `Content-Security-Policy` header string, and checks that policy against a **fixed sample page** of five resources. Anything the policy would not permit is listed under "Would be blocked" with a reason.
+
+It is built with TypeScript (`apps/experiments/content-security-policy-builder/logic.ts`) and a React client component. It teaches how a policy is assembled, how `default-src` acts as a fallback, and why a strict policy breaks a page until each legitimate origin is allowed.
+
+<Callout type="info">
+  The check is **static analysis on a hard-coded sample page**. The builder never fetches a URL, never loads your site, and never executes any script. It is a teaching model of CSP matching, not a replacement for a browser's CSP engine.
+</Callout>
+
+## Features
+
+- **Seven directives:** `default-src`, `script-src`, `style-src`, `img-src`, `connect-src`, `font-src`, and `frame-src`.
+- **Token toggles** per directive: `'self'`, `'unsafe-inline'`, `'none'`, `https://cdn.example.com`, and `data:`.
+- **Sample presets** for `script-src`, `connect-src`, and `img-src` that apply realistic allowlists in one click.
+- **Live policy string** built in a stable directive order.
+- **Violation report** that names the blocked resource, the effective directive, and why.
+- **`default-src` fallback** - an empty directive inherits `default-src`, and with no `default-src` the effective value is `'none'`.
+- **Reset** returns to the default policy.
+
+## UI Reference
+
+This experiment has no API routes; everything runs in the browser.
+
+### Policy model
+
+```ts
+type CspDirectives = {
+  'default-src'?: string[];
+  'script-src'?: string[];
+  'style-src'?: string[];
+  'img-src'?: string[];
+  'connect-src'?: string[];
+  'font-src'?: string[];
+  'frame-src'?: string[];
+};
+```
+
+The default policy the demo starts from:
+
+```ts
+export const defaultCspDirectives: CspDirectives = {
+  'default-src': ["'self'"],
+  'script-src': ["'self'"],
+  'style-src': ["'self'", "'unsafe-inline'"],
+  'img-src': ["'self'", 'data:'],
+  'connect-src': ["'self'"],
+  'font-src': ["'self'"],
+  'frame-src': ["'none'"],
+};
+```
+
+### Exported functions
+
+<TypeTable
+  type={{
+    'buildCsp(directives)': {
+      description:
+        'Serializes a CspDirectives object into a header value. Directives with no values are omitted; directives are joined with "; " in a fixed order.',
+      type: '(directives: CspDirectives) => string',
+    },
+    'analyzeViolations(directives, resources)': {
+      description:
+        'Returns one Violation for each sample resource that the effective directive would not allow.',
+      type: '(directives: CspDirectives, resources: SampleResource[]) => Violation[]',
+    },
+    samplePageResources: {
+      description: 'The five fixed resources the demo analyzes.',
+      type: 'SampleResource[]',
+    },
+    defaultCspDirectives: {
+      description: 'The starting policy shown in the demo.',
+      type: 'CspDirectives',
+    },
+  }}
+/>
+
+### Sample page resources
+
+| Id | Label | Directive | Source |
+| --- | --- | --- | --- |
+| `app-js` | App bundle | `script-src` | `https://cdn.example.com/app.js` |
+| `inline-script` | Inline analytics snippet | `script-src` | `inline` |
+| `hero-img` | Hero image | `img-src` | `https://images.example.com/hero.webp` |
+| `api` | API fetch | `connect-src` | `https://api.example.com/v1/metrics` |
+| `font` | Web font | `font-src` | `https://fonts.example.com/kern.woff2` |
+
+### Violation shape
+
+```json
+{
+  "resourceId": "app-js",
+  "label": "App bundle",
+  "directive": "script-src",
+  "reason": "Source \"https://cdn.example.com/app.js\" is not permitted by script-src."
+}
+```
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### Build the header string
+
+`buildCsp` walks the directives in a fixed order and skips any that are empty.
+
+```ts title="apps/experiments/content-security-policy-builder/logic.ts"
+export function buildCsp(directives: CspDirectives): string {
+  const parts: string[] = [];
+  const order: (keyof CspDirectives)[] = [
+    'default-src',
+    'script-src',
+    'style-src',
+    'img-src',
+    'connect-src',
+    'font-src',
+    'frame-src',
+  ];
+  for (const key of order) {
+    const values = directives[key];
+    if (!values || values.length === 0) continue;
+    parts.push(`${key} ${values.join(' ')}`);
+  }
+  return parts.join('; ');
+}
+```
+
+The default policy serializes to:
+
+```text
+default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; font-src 'self'; frame-src 'none'
+```
+
+</Step>
+<Step>
+
+### Resolve the effective directive
+
+If the resource's directive has values, those are used. Otherwise the model falls back to `default-src`, and if that is also missing it falls back to `'none'`.
+
+```ts title="apps/experiments/content-security-policy-builder/logic.ts"
+function effectiveDirectiveValues(
+  directives: CspDirectives,
+  directive: keyof CspDirectives,
+): string[] {
+  const specific = directives[directive];
+  if (specific && specific.length > 0) return specific;
+  return directives['default-src'] ?? ["'none'"];
+}
+```
+
+</Step>
+<Step>
+
+### Match the resource against the allowlist
+
+`allowsSource` applies the matching rules in order.
+
+```ts title="apps/experiments/content-security-policy-builder/logic.ts"
+function allowsSource(allowed: string[], resource: SampleResource): boolean {
+  if (allowed.includes("'none'")) return false;
+  if (allowed.includes('*')) return true;
+  if (resource.kind === 'inline' && allowed.includes("'unsafe-inline'")) return true;
+  if (resource.kind === 'inline' && allowed.includes("'strict-dynamic'")) return false;
+  if (resource.source.startsWith('data:') && allowed.includes('data:')) return true;
+  if (resource.source.startsWith('blob:') && allowed.includes('blob:')) return true;
+  if (allowed.includes("'self'") && resource.source.startsWith('/')) return true;
+
+  for (const entry of allowed) {
+    if (entry === "'self'" || entry.startsWith("'")) continue;
+    if (resource.source === entry) return true;
+    if (entry.startsWith('https://') && resource.source.startsWith(entry)) return true;
+  }
+  return false;
+}
+```
+
+</Step>
+<Step>
+
+### Report violations
+
+Every resource that fails the match produces a `Violation`.
+
+```ts title="apps/experiments/content-security-policy-builder/logic.ts"
+for (const resource of resources) {
+  const allowed = effectiveDirectiveValues(directives, resource.directive);
+  if (!allowsSource(allowed, resource)) {
+    violations.push({
+      resourceId: resource.id,
+      label: resource.label,
+      directive: resource.directive,
+      reason: `Source "${resource.source}" is not permitted by ${resource.directive}.`,
+    });
+  }
+}
+```
+
+</Step>
+</Steps>
+
+### Worked examples
+
+Running the real functions:
+
+- **Default policy** - all five sample resources are blocked (`app-js`, `inline-script`, `hero-img`, `api`, `font`), because every sample source is a cross-origin `https://` URL or inline code and the default allowlists only `'self'`.
+- **Add `https://cdn.example.com` to `script-src` and `https://api.example.com` to `connect-src`** (the presets) - only `inline-script`, `hero-img`, and `font` remain blocked. The policy string becomes:
+
+```text
+default-src 'self'; script-src 'self' https://cdn.example.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://api.example.com; font-src 'self'; frame-src 'none'
+```
+
+- **Also apply the `img-src` preset** - `hero-img` is allowed. Adding `'unsafe-inline'` to `script-src` allows `inline-script`, which shows why that keyword weakens XSS protection.
+
+## Use Cases
+
+- Learn how each fetch directive maps to a kind of resource.
+- Demonstrate why `default-src 'self'` breaks third-party scripts, images, and APIs until they are explicitly allowed.
+- Explain the tradeoff of `'unsafe-inline'` before using it in production.
+- Draft a baseline policy string you can then harden with nonces or hashes.
+- Teach the `default-src` fallback rule and the `'none'` fail-closed default.
+
+## Limitations
+
+- **Fixed sample page only.** The builder analyzes five hard-coded resources and never executes arbitrary user scripts. This is the data.ts security note.
+- **Simplified matcher.** The model does not implement `nonce-`, hash sources, `'strict-dynamic'` host semantics, wildcard hosts like `https://*.example.com`, bare schemes like `https:`, ports, paths, or case rules. Host entries match by exact string or by `https://` prefix.
+- **`'self'` is narrow.** It only matches sources that start with `/`. All sample sources are absolute URLs, so `'self'` never allows them.
+- **The font resource cannot be unblocked from the UI.** The checkbox tokens are `'self'`, `'unsafe-inline'`, `'none'`, `https://cdn.example.com`, and `data:`; none match `https://fonts.example.com/kern.woff2`. Call `analyzeViolations` with your own directives in code to model it.
+- **Only seven directives.** `object-src`, `base-uri`, `form-action`, `frame-ancestors`, `report-to`, `upgrade-insecure-requests`, and others are not modeled.
+- **Nothing is enforced.** The string is displayed only. The app does not send it as a response header, and there is no `Content-Security-Policy-Report-Only` mode.
+- **No browser behavior.** Real browsers also account for redirects, dev-only requirements such as `'unsafe-eval'` in Next.js development, and inline event handlers.
+
+## Use in your project
+
+Paste `buildCsp` and `analyzeViolations` into a test helper to guard your own policy, or serialize a static policy into `next.config`.
+
+```ts
+import {
+  analyzeViolations,
+  buildCsp,
+  type CspDirectives,
+  type SampleResource,
+} from './logic';
+
+const directives: CspDirectives = {
+  'default-src': ["'self'"],
+  'script-src': ["'self'", 'https://cdn.example.com'],
+  'img-src': ["'self'", 'data:', 'https://images.example.com'],
+  'connect-src': ["'self'", 'https://api.example.com'],
+  'frame-src': ["'none'"],
+};
+
+const resources: SampleResource[] = [
+  {
+    id: 'app-js',
+    label: 'App bundle',
+    directive: 'script-src',
+    source: 'https://cdn.example.com/app.js',
+    kind: 'host',
+  },
+];
+
+console.log(buildCsp(directives));
+console.log(analyzeViolations(directives, resources)); // []
+```
+
+To send the generated policy from a Next.js app, set it as a header:
+
+```ts title="next.config.ts"
+import type { NextConfig } from 'next';
+
+const csp =
+  "default-src 'self'; script-src 'self' https://cdn.example.com; frame-src 'none'";
+
+const config: NextConfig = {
+  async headers() {
+    return [
+      {
+        source: '/(.*)',
+        headers: [{ key: 'Content-Security-Policy', value: csp }],
+      },
+    ];
+  },
+};
+
+export default config;
+```
+
+<Callout type="info">
+  Policies that use a per-request nonce must be generated in Proxy and require dynamic rendering. Follow the official [Next.js CSP guide](https://nextjs.org/docs/app/guides/content-security-policy) for that setup and test in Report-Only mode first.
+</Callout>
+
+## Deployment
+
+<ExperimentDeployButton slug="content-security-policy-builder" />
+
+
+No Marketplace stores, secrets, or server routes are required.
+
+- Use the Deploy button on this experiment page.
+
+## Local Development
+
+```bash
+pnpm install
+pnpm dev
+```
+
+Run the standalone app (`cd apps/experiments/content-security-policy-builder && pnpm install && pnpm dev`) and open http://localhost:3010. There are no API routes, so no `curl` examples apply.
+
+Run the experiment's unit tests:
+
+```bash
+pnpm vitest run ../experiments/content-security-policy-builder
+```
+
+## Configuration
+
+No environment variables or external services. To change the sample page, edit `samplePageResources` in `logic.ts`. To change the starting policy, edit `defaultCspDirectives`. To offer other toggle tokens, edit the token list in `demo.tsx`.
+
+## Vercel / Next.js Features Used
+
+- [Content Security Policy guide](https://nextjs.org/docs/app/guides/content-security-policy) - nonces, Proxy, and strict policies in Next.js.
+- [`headers` in next.config](https://nextjs.org/docs/app/api-reference/config/next-config-js/headers) - the recommended place for a static policy.
+- [Proxy](https://nextjs.org/docs/app/api-reference/file-conventions/proxy) - where per-request nonces are generated.
+- [MDN: Content Security Policy](https://developer.mozilla.org/docs/Web/HTTP/CSP) - the CSP specification overview.
+- Next.js Client Components for the interactive builder.
+
+## Next Steps
+
+<Cards>
+  <Card title="Webhook Signature Verifier" href="/docs/experiments/webhook-signature-verifier">
+    Practice HMAC signatures and replay prevention for webhook security.
+  </Card>
+  <Card title="Next.js CSP guide" href="https://nextjs.org/docs/app/guides/content-security-policy">
+    Official nonce-based CSP setup for Next.js.
+  </Card>
+  <Card title="MDN: Content Security Policy" href="https://developer.mozilla.org/docs/Web/HTTP/CSP">
+    Directive reference and browser behavior.
+  </Card>
+</Cards>

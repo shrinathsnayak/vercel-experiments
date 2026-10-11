@@ -1,0 +1,124 @@
+---
+title: Contract Clause Finder
+description: Paste a short contract or upload a PDF - structured risk clauses, obligations, and dates table via generateObject.
+---
+
+<ExperimentEmbed slug="contract-clause-finder" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects. Outputs are not legal advice.
+</Callout>
+
+Contract Clause Finder accepts pasted contract text or a `.pdf` / `.txt` upload (`unpdf` for PDFs), then uses `generateObject` to return up to 24 rows classified as risk, obligation, date, or other. The UI renders a table and can export JSON. No AI keys - `503`.
+
+## Features
+
+- **Paste or PDF** – multipart upload or JSON `{ text }`.
+- **Structured table** – kind, title, summary, party, deadline.
+- **Export JSON** – download `{ clauses: [...] }`.
+- **Sample MSA** – payment, liability, termination, confidentiality.
+- **Honest unavailable state**.
+
+## Server Reference
+
+### `POST /api/clauses`
+
+Multipart: `text`, optional `file`. Or JSON `{ "text": "..." }`.
+
+#### Success (`200`)
+
+```json
+{
+  "clauses": [
+    {
+      "kind": "obligation",
+      "title": "Payment terms",
+      "summary": "Customer pays within 30 days.",
+      "excerpt": "Customer shall pay invoices within thirty (30) days",
+      "party": "Customer",
+      "dateOrDeadline": "30 days of receipt"
+    }
+  ],
+  "charsUsed": 1200,
+  "provider": "ai-gateway"
+}
+```
+
+| Status | Cause |
+| --- | --- |
+| `503` | No AI provider |
+| `400` | Empty source / bad PDF |
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### Extract text
+
+`unpdf` for PDFs; `truncateText` caps at ~20k chars.
+
+</Step>
+<Step>
+
+### generateObject + clamp
+
+Zod schema + `clampClauses` trims excerpts and caps rows at 24.
+
+</Step>
+</Steps>
+
+## Use Cases
+
+- Quick triage of short vendor MSAs.
+- Teach document - table composition with `generateObject`.
+- Export clause JSON into review checklists.
+
+## Limitations
+
+- Not legal advice; image-only PDFs fail extraction.
+- Long agreements are truncated.
+- No auth / rate limits.
+
+## Use in your project
+
+Copy the multipart extract + `generateObject` pattern from `app/api/clauses/route.ts`. Persist rows to Neon or Blob as needed.
+
+## Deployment
+
+<ExperimentDeployButton slug="contract-clause-finder" />
+
+## Local Development
+
+```bash
+cd apps/experiments/contract-clause-finder
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `AI_GATEWAY_API_KEY` | Yes (or `OPENAI_API_KEY`) | Preferred provider |
+| `OPENAI_API_KEY` | No | Fallback |
+| `AI_MODEL` | No | Model override |
+
+## Vercel / Next.js Features Used
+
+- AI SDK `generateObject`
+- Vercel AI Gateway
+- Route Handlers
+- `unpdf`
+- Zod
+
+## Next Steps
+
+<Cards>
+  <Card title="Policy Simplifier Lab" href="/docs/experiments/policy-simplifier-lab">
+    Plain-language policy summaries.
+  </Card>
+  <Card title="PDF Quiz Lab" href="/docs/experiments/pdf-quiz-lab">
+    Another PDF + generateObject composition lab.
+  </Card>
+</Cards>

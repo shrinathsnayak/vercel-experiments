@@ -1,0 +1,337 @@
+---
+title: Neon Postgres Lab
+description: "Insert and list rows with Neon serverless Postgres provisioned from the Vercel Marketplace."
+---
+
+<ExperimentEmbed slug="neon-postgres-lab" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+The Neon Postgres Lab runs real SQL against [Neon](https://neon.com) serverless Postgres, provisioned from the Vercel Marketplace. A Route Handler uses the `@neondatabase/serverless` driver over HTTP, creates a small `experiment_notes` table on first use, inserts notes, and lists the most recent rows. The connection string comes from `DATABASE_URL`, which the Marketplace injects when you connect the store.
+
+## Features
+
+- **Insert notes.** Add a note of 1–280 characters; the server returns the created row with its `id` and `createdAt`.
+- **List recent rows.** Shows the 20 newest notes, newest first.
+- **Self-bootstrapping table.** `CREATE TABLE IF NOT EXISTS experiment_notes` runs before reads and writes, so no migration step is needed.
+- **Parameterized queries.** Values are passed through the tagged-template `sql` function, not concatenated into the query string.
+- **Honest missing-config state.** Without a database URL the routes return `503` with a `setup` hint (on `GET`) and the UI shows a warning.
+- **One-click provisioning.** The Deploy button provisions Neon and injects `DATABASE_URL`.
+
+## API Reference
+
+If no database URL is configured, every method returns **`503`**.
+
+### GET /api/postgres/demo
+
+Returns the 20 most recent notes.
+
+<TypeTable
+  type={{
+    'Response 200': {
+      type: '{ notes: Note[], backend: "neon-postgres" }',
+      description:
+        'Note is { id: number, body: string, createdAt: string }, ordered by created_at descending with LIMIT 20.',
+    },
+    'Response 503': {
+      type: '{ error, setup }',
+      description:
+        'error is "Postgres is not configured". setup says to add Neon via the Vercel Marketplace so DATABASE_URL is injected. A second form, { error: "Postgres unavailable" }, is returned if the client could not be created.',
+    },
+  }}
+/>
+
+### POST /api/postgres/demo
+
+Inserts one note.
+
+<TypeTable
+  type={{
+    body: {
+      type: 'string',
+      required: true,
+      description: '1–280 characters (validated with Zod before trimming).',
+    },
+    'Response 201': {
+      type: '{ note: Note, backend: "neon-postgres" }',
+      description: 'note is the row returned by INSERT ... RETURNING id, body, created_at.',
+    },
+    'Response 400': {
+      type: '{ error }',
+      description: '"Invalid JSON" for a non-JSON body, or "body must be 1–280 characters".',
+    },
+    'Response 503': {
+      type: '{ error }',
+      description: '"Postgres is not configured" (no setup field on POST), or "Postgres unavailable".',
+    },
+  }}
+/>
+
+## Implementation Details
+
+<Files>
+  <Folder name="apps/experiments/neon-postgres-lab" defaultOpen>
+    <File name="demo.tsx" />
+    <File name="logic.ts" />
+    <File name="logic.test.ts" />
+  </Folder>
+  <Folder name="app/api/postgres/demo" defaultOpen>
+    <File name="route.ts" />
+  </Folder>
+  <Folder name="lib/vercel">
+    <File name="postgres.ts" />
+    <File name="deploy.ts" />
+  </Folder>
+</Files>
+
+<Steps>
+<Step>
+
+### Resolve the connection string
+
+`lib/vercel/postgres.ts` looks for `DATABASE_URL`, then `POSTGRES_URL`, then `POSTGRES_PRISMA_URL`, and builds a Neon HTTP client only when one exists.
+
+```ts
+import { neon } from '@neondatabase/serverless';
+
+export function getDatabaseUrl(): string | null {
+  const url =
+    process.env.DATABASE_URL?.trim() ||
+    process.env.POSTGRES_URL?.trim() ||
+    process.env.POSTGRES_PRISMA_URL?.trim();
+  return url || null;
+}
+
+export function getSql() {
+  const url = getDatabaseUrl();
+  if (!url) return null;
+  return neon(url);
+}
+```
+
+</Step>
+<Step>
+
+### Create the table on demand
+
+```ts
+async function ensureTable() {
+  const sql = getSql();
+  if (!sql) return null;
+  await sql`
+    CREATE TABLE IF NOT EXISTS experiment_notes (
+      id SERIAL PRIMARY KEY,
+      body TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
+  return sql;
+}
+```
+
+</Step>
+<Step>
+
+### Validate and insert
+
+The body schema limits notes to 280 characters, and the value is bound as a query parameter.
+
+```ts
+const noteSchema = z.object({
+  body: z.string().min(1).max(280),
+});
+
+const rows = await sql`
+  INSERT INTO experiment_notes (body)
+  VALUES (${parsed.data.body})
+  RETURNING id, body, created_at AS "createdAt"
+`;
+
+return NextResponse.json({ note: rows[0], backend: 'neon-postgres' }, { status: 201 });
+```
+
+</Step>
+<Step>
+
+### List the newest rows
+
+```ts
+const rows = await sql`
+  SELECT id, body, created_at AS "createdAt"
+  FROM experiment_notes
+  ORDER BY created_at DESC
+  LIMIT 20
+`;
+```
+
+</Step>
+<Step>
+
+### Validate on the client first
+
+`apps/experiments/neon-postgres-lab/logic.ts` exports `validateNoteBody()`, which the demo runs (on the trimmed text) before calling the API.
+
+```ts
+export function validateNoteBody(body: string): string | null {
+  const trimmed = body.trim();
+  if (!trimmed) return 'Note cannot be empty';
+  if (trimmed.length > 280) return 'Note must be 280 characters or fewer';
+  return null;
+}
+```
+
+</Step>
+</Steps>
+
+## Use Cases
+
+- Persisting application data (users, posts, orders) with SQL from Route Handlers and Server Components.
+- Prototyping a schema quickly with a serverless database that needs no connection pool setup in the HTTP driver.
+- A reference for validated, parameterized inserts from a Route Handler.
+- Combining with Redis for a cache-aside pattern in front of slower queries.
+
+## Limitations
+
+- **Demo schema only.** The table is `experiment_notes (id, body, created_at)`. There are no migrations, indexes beyond the primary key, or relations.
+- **Public and unauthenticated.** Anyone who can reach the deployment can insert and read notes. Do not store secrets or personal data.
+- **No update or delete.** The API only inserts and lists, so rows accumulate until you remove them directly in the database.
+- **Table creation on every request.** `CREATE TABLE IF NOT EXISTS` runs on each call to keep setup zero-step. A production app should use migrations instead.
+- **List is capped.** `GET` returns at most 20 rows with no pagination.
+- **Server-side whitespace.** The API validates length on the raw string; only the demo UI trims before sending.
+- **Database errors are not caught.** A bad connection string or a Neon outage throws from the driver and is not turned into a friendly response.
+- **HTTP driver trade-offs.** The `neon()` tagged-template client sends each query over HTTP. Use the driver's pooled or WebSocket mode if you need interactive transactions.
+
+## Use in your project
+
+Install with `pnpm add @neondatabase/serverless` and set `DATABASE_URL`.
+
+```ts
+// app/api/notes/route.ts
+import { neon } from '@neondatabase/serverless';
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+
+const sql = neon(process.env.DATABASE_URL!);
+
+const noteSchema = z.object({ body: z.string().min(1).max(280) });
+
+export async function GET() {
+  const rows = await sql`
+    SELECT id, body, created_at AS "createdAt"
+    FROM notes
+    ORDER BY created_at DESC
+    LIMIT 20
+  `;
+  return NextResponse.json({ notes: rows });
+}
+
+export async function POST(request: Request) {
+  const parsed = noteSchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) {
+    return NextResponse.json({ error: 'body must be 1–280 characters' }, { status: 400 });
+  }
+
+  const rows = await sql`
+    INSERT INTO notes (body) VALUES (${parsed.data.body})
+    RETURNING id, body, created_at AS "createdAt"
+  `;
+  return NextResponse.json({ note: rows[0] }, { status: 201 });
+}
+```
+
+Create the `notes` table with a migration tool before deploying this.
+
+## Deployment
+
+<ExperimentDeployButton slug="neon-postgres-lab" />
+
+
+Use the one-click Deploy button. It clones the repository and provisions Neon from the Vercel Marketplace, which injects `DATABASE_URL`.
+
+<Cards>
+  <Card
+    title="Deploy with Neon Postgres"
+    href="https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fvercel-experiments%2Fvercel-experiments.com&project-name=vercel-experiments&repository-name=vercel-experiments&stores=%5B%7B%22type%22%3A%22integration%22%2C%22integrationSlug%22%3A%22neon%22%2C%22productSlug%22%3A%22neon%22%2C%22protocol%22%3A%22storage%22%7D%5D"
+  >
+    Clones the repo and adds the Neon integration (`protocol: "storage"`).
+  </Card>
+</Cards>
+
+If you add Neon to an existing project, redeploy afterward so the new environment variable is available.
+
+## Local Development
+
+```bash
+pnpm install
+pnpm dev
+```
+
+Pull the connection string from a linked project, or set your own Neon URL:
+
+```bash
+vercel env pull .env.local
+# or
+echo 'DATABASE_URL=postgresql://user:password@<host>/<db>?sslmode=require' >> .env.local
+```
+
+Try the API (default port `3000`):
+
+```bash
+# Insert a note
+curl -X POST http://localhost:3000/api/postgres/demo \
+  -H "content-type: application/json" \
+  -d '{"body":"Shipped with Neon on the Vercel Marketplace"}'
+
+# List the newest 20 notes
+curl http://localhost:3000/api/postgres/demo
+```
+
+Expected response when no database is configured:
+
+```json
+{
+  "error": "Postgres is not configured",
+  "setup": "Add Neon via the Vercel Marketplace (included in the platform Deploy button) so DATABASE_URL is injected."
+}
+```
+
+Sending an invalid body returns `400`:
+
+```json
+{ "error": "body must be 1–280 characters" }
+```
+
+## Configuration
+
+From `.env.example`:
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `DATABASE_URL` | Yes, for live demos | Neon Postgres connection string. Injected by the Marketplace integration. |
+| `POSTGRES_URL` | Optional alternative | Used when `DATABASE_URL` is not set. |
+| `POSTGRES_PRISMA_URL` | Optional alternative | Last fallback in `getDatabaseUrl()`. |
+
+The first non-empty value of `DATABASE_URL`, `POSTGRES_URL`, `POSTGRES_PRISMA_URL` is used.
+
+## Vercel / Next.js Features Used
+
+- **Vercel Marketplace** storage integration (Neon) provisioned through the Deploy Button `stores` parameter (`NEON_STORE` in `lib/vercel/deploy.ts`).
+- **Neon serverless driver** (`@neondatabase/serverless`) with the `neon()` tagged-template HTTP client.
+- **Route Handlers** with `GET` and `POST` exports, returning `201` on create.
+- **Zod** for request validation.
+
+## Next Steps
+
+<Cards>
+  <Card title="Redis Cache Lab" href="/docs/experiments/redis-cache-lab">
+    Add a TTL cache in front of database reads.
+  </Card>
+  <Card title="Environment Variable Inspector" href="/docs/experiments/environment-variable-inspector">
+    Learn which variables are public, server-only, or invalid.
+  </Card>
+  <Card title="Cron Jobs Lab" href="/docs/experiments/cron-jobs-lab">
+    Schedule cleanup or sync jobs that write to your database.
+  </Card>
+</Cards>

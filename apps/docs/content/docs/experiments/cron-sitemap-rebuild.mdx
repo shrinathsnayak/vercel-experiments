@@ -1,0 +1,83 @@
+---
+title: Cron Sitemap Rebuild
+description: Vercel Cron regenerates sitemap.xml from a content list backed by Neon, Blob, or memory.
+---
+
+<ExperimentEmbed slug="cron-sitemap-rebuild" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+Cron job rebuilds `sitemap.xml` from a content URL list with Neon/Blob/memory persistence.
+
+## Features
+
+- Standalone Next.js app under `apps/experiments/cron-sitemap-rebuild/`.
+- Honest degradation when optional services are missing.
+- Unit-tested helpers in `logic.ts`.
+
+## API Reference
+
+### `GET|POST /api/cron/sitemap · GET /sitemap.xml`
+
+```
+Cron Authorization bearer when CRON_SECRET set
+```
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### Run the demo
+
+Use the embedded playground or `pnpm dev` in the experiment app.
+
+</Step>
+<Step>
+
+### Inspect the handlers
+
+Copy Route Handlers from `apps/experiments/cron-sitemap-rebuild/` into your project.
+
+</Step>
+</Steps>
+
+## Limitations
+
+- Educational demo — not a production-hardened product.
+- Inputs are length-capped.
+
+## Use in your project
+
+Copy the experiment folder or individual Route Handlers.
+
+## Deployment
+
+<ExperimentDeployButton slug="cron-sitemap-rebuild" />
+
+## Local Development
+
+```bash
+cd apps/experiments/cron-sitemap-rebuild
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `CRON_SECRET` | Yes | Lab configuration |
+
+## Vercel / Next.js Features Used
+
+- Vercel Cron, Neon, Vercel Blob, Upstash Redis
+
+## Next Steps
+
+<Cards>
+  <Card title="cron-jobs-lab" href="/docs/experiments/cron-jobs-lab">Related lab.</Card>
+  <Card title="sitemap-health-lab" href="/docs/experiments/sitemap-health-lab">Related lab.</Card>
+</Cards>

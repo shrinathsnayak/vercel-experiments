@@ -1,0 +1,106 @@
+---
+title: OG from Database
+description: Seed/list Neon product rows (or in-memory fallback) and render ImageResponse OG cards by slug.
+---
+
+<ExperimentEmbed slug="og-from-database" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+OG from Database seeds product rows into Neon (`experiment_products`) when `DATABASE_URL` is set, otherwise uses an in-memory seed list. `GET /api/og?slug=` looks up the row and returns an `ImageResponse` card from title/description. No AI provider is required.
+
+## Features
+
+- **Seed / list / upsert products** – Neon or in-memory.
+- **OG by slug** – `ImageResponse` from row fields.
+- **Shared memory store** – in-memory adds appear in OG previews.
+- **Sample catalog** – Edge Cache Kit, Neon Notes, Blob Drop.
+- **Honest storage note** when Postgres is missing.
+
+## API Reference
+
+### `GET /api/products` / `POST /api/products`
+
+List or upsert `{ slug?, title, description }`.
+
+### `GET /api/og?slug=`
+
+Returns a 1200×630 PNG Open Graph image for the product.
+
+| Status | Cause |
+| --- | --- |
+| `400` | Missing slug / invalid product body |
+| `404` | Unknown slug |
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### ensureTable + seedIfEmpty
+
+Creates `experiment_products` and seeds defaults once.
+
+</Step>
+<Step>
+
+### ImageResponse
+
+Renders title + description from the looked-up row.
+
+</Step>
+</Steps>
+
+## Use Cases
+
+- Learn composition patterns for this lab’s stack.
+- Prototype before wiring production auth and quotas.
+- Deploy the standalone app as a reference implementation.
+
+## Limitations
+
+- Demo-scale caps on input size and output counts.
+- No auth / rate limits on public deploys.
+- Model quality depends on input clarity.
+
+## Use in your project
+
+Copy the Route Handler and `logic.ts` helpers from `apps/experiments/og-from-database/`. Wire your own persistence and auth as needed.
+
+## Deployment
+
+<ExperimentDeployButton slug="og-from-database" />
+
+## Local Development
+
+```bash
+cd apps/experiments/og-from-database
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `DATABASE_URL` | No | Neon product storage |
+
+## Vercel / Next.js Features Used
+
+- `next/og` ImageResponse
+- Neon serverless Postgres
+- Route Handlers
+- Zod
+
+## Next Steps
+
+<Cards>
+  <Card title="OG Image Studio" href="/docs/experiments/og-image-studio">
+    Query-param OG layouts.
+  </Card>
+  <Card title="Neon Postgres Lab" href="/docs/experiments/neon-postgres-lab">
+    Marketplace Postgres notes demo.
+  </Card>
+</Cards>

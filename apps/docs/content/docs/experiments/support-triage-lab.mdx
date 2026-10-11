@@ -1,0 +1,102 @@
+---
+title: Support Triage Lab
+description: Paste a support ticket - category, priority, and draft reply via generateObject; Redis rate limit when available.
+---
+
+<ExperimentEmbed slug="support-triage-lab" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+Support Triage Lab turns a pasted ticket into `{ category, priority, reply }` with `generateObject`. When Upstash Redis is configured it rate-limits requests; otherwise it skips the limit and shows a note. Missing AI keys return `503`.
+
+## Features
+
+- **Ticket - triage** – category, priority, draft reply.
+- **Redis rate limit** – per-IP window when configured.
+- **Honest `503` / `429`** – no fabricated model output; clear limit errors.
+
+## Server Reference
+
+### `POST /api/triage`
+
+```json
+{ "ticket": "..." }
+```
+
+| Status | Cause |
+| --- | --- |
+| `503` | No AI provider |
+| `429` | Rate limit exceeded |
+| `400` | Empty ticket |
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### Rate limit
+
+Redis `INCR` + `EXPIRE` when available.
+
+</Step>
+<Step>
+
+### Triage
+
+`generateObject` with Zod schema for category/priority/reply.
+
+</Step>
+</Steps>
+
+## Use Cases
+
+- Prototype support automation.
+- Learn rate-limit + AI composition.
+
+## Limitations
+
+- Heuristic categories are demo-scoped.
+- No ticket persistence.
+
+## Use in your project
+
+Copy handlers from `apps/experiments/support-triage-lab/`.
+
+## Deployment
+
+<ExperimentDeployButton slug="support-triage-lab" />
+
+## Local Development
+
+```bash
+cd apps/experiments/support-triage-lab
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `AI_GATEWAY_API_KEY` | Yes (or `OPENAI_API_KEY`) | Triage |
+| `UPSTASH_REDIS_REST_URL` / `TOKEN` | No | Rate limit |
+
+## Vercel / Next.js Features Used
+
+- AI SDK `generateObject`
+- Upstash Redis
+- Route Handlers
+- Zod
+
+## Next Steps
+
+<Cards>
+  <Card title="GitHub Issue Triage" href="/docs/experiments/github-issue-triage">
+    Issue paste - labels + first response.
+  </Card>
+  <Card title="Rate Limiting Simulator" href="/docs/experiments/rate-limiting-simulator">
+    Token bucket / sliding window demos.
+  </Card>
+</Cards>

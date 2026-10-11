@@ -1,0 +1,115 @@
+---
+title: CSV Insight Lab
+description: Paste or upload CSV (max 50 rows) - parse locally, then generateObject insights and chartReady aggregates without inventing rows.
+---
+
+<ExperimentEmbed slug="csv-insight-lab" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+CSV Insight Lab parses CSV in `logic.ts` (max 50 data rows), builds `chartReady` aggregates from numeric columns, then calls `generateObject` for insights grounded only in those rows. The model is instructed never to invent rows. Missing AI keys return `503`.
+
+## Features
+
+- **Local CSV parse** – quoted fields, row cap.
+- **chartReady aggregates** – from parsed numeric columns only.
+- **Insights + caveats** – generateObject schema.
+- **Sample sales CSV** – product / units / revenue.
+- **Honest `503`** when AI is unavailable.
+
+## Server Reference
+
+### `POST /api/insights`
+
+JSON `{ "csv": "..." }` or multipart with `csv` + optional `file`.
+
+#### Success (`200`)
+
+```json
+{
+  "insights": ["Units peak on Blob Drop"],
+  "caveats": ["Only 5 rows"],
+  "chartReady": [{ "label": "Blob Drop", "value": 200 }],
+  "rowCount": 5,
+  "provider": "ai-gateway"
+}
+```
+
+| Status | Cause |
+| --- | --- |
+| `503` | No AI provider |
+| `400` | Missing header/data rows |
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### parseCsv + numericColumnAggregates
+
+Pure helpers; aggregates never invent values.
+
+</Step>
+<Step>
+
+### generateObject
+
+Prompt includes the parsed preview only.
+
+</Step>
+</Steps>
+
+## Use Cases
+
+- Learn composition patterns for this lab’s stack.
+- Prototype before wiring production auth and quotas.
+- Deploy the standalone app as a reference implementation.
+
+## Limitations
+
+- Demo-scale caps on input size and output counts.
+- No auth / rate limits on public deploys.
+- Model quality depends on input clarity.
+
+## Use in your project
+
+Copy the Route Handler and `logic.ts` helpers from `apps/experiments/csv-insight-lab/`. Wire your own persistence and auth as needed.
+
+## Deployment
+
+<ExperimentDeployButton slug="csv-insight-lab" />
+
+## Local Development
+
+```bash
+cd apps/experiments/csv-insight-lab
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `AI_GATEWAY_API_KEY` | Yes (or `OPENAI_API_KEY`) | Preferred provider |
+| `OPENAI_API_KEY` | No | Fallback |
+| `AI_MODEL` | No | Model override |
+
+## Vercel / Next.js Features Used
+
+- AI SDK `generateObject`
+- Route Handlers
+- Zod
+
+## Next Steps
+
+<Cards>
+  <Card title="Receipt to JSON Lab" href="/docs/experiments/receipt-to-json-lab">
+    Structured extraction patterns.
+  </Card>
+  <Card title="Resume Fit Lab" href="/docs/experiments/resume-fit-lab">
+    Score + structured suggestions.
+  </Card>
+</Cards>

@@ -1,0 +1,103 @@
+---
+title: Schema from Sample Lab
+description: Paste JSON or CSV - TypeScript types and Zod schema strings you can download.
+---
+
+<ExperimentEmbed slug="schema-from-sample-lab" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+Schema from Sample Lab infers TypeScript types and Zod schemas from a JSON or CSV paste. `detectSampleKind` hints the prompt; the model returns code strings you can download as `types.ts` / `schema.ts`. No AI keys - `503`.
+
+## Features
+
+- **JSON or CSV samples** – one-click loaders.
+- **Dual code output** – TypeScript + Zod strings.
+- **Notes** – assumptions (optional fields, unions).
+- **Download buttons** – save each string.
+- **Honest unavailable state**.
+
+## Server Reference
+
+### `POST /api/schema`
+
+```json
+{ "sample": "{ ... }" }
+```
+
+#### Success (`200`)
+
+```json
+{
+  "typescript": "export type User = { id: string; ... }",
+  "zod": "export const UserSchema = z.object({ ... })",
+  "notes": ["roles is string[]"],
+  "detectedKind": "json",
+  "provider": "ai-gateway"
+}
+```
+
+| Status | Cause |
+| --- | --- |
+| `503` | No AI provider |
+| `400` | Empty sample |
+
+## Implementation Details
+
+`detectSampleKind` and `clampSchema` are pure helpers in `logic.ts` (unit tested).
+
+## Use Cases
+
+- Bootstrap Zod from API fixtures.
+- Teach sample - schema composition.
+- CSV column typing drafts.
+
+## Limitations
+
+- Sparse samples produce weak types.
+- Does not validate generated code by compiling it.
+- No auth / rate limits.
+
+## Use in your project
+
+Reuse the dual string schema from `app/api/schema/route.ts`.
+
+## Deployment
+
+<ExperimentDeployButton slug="schema-from-sample-lab" />
+
+## Local Development
+
+```bash
+cd apps/experiments/schema-from-sample-lab
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `AI_GATEWAY_API_KEY` | Yes (or `OPENAI_API_KEY`) | Preferred provider |
+| `OPENAI_API_KEY` | No | Fallback |
+| `AI_MODEL` | No | Model override |
+
+## Vercel / Next.js Features Used
+
+- AI SDK `generateObject`
+- Vercel AI Gateway
+- Route Handlers
+- Zod
+
+## Next Steps
+
+<Cards>
+  <Card title="CSV Insight Lab" href="/docs/experiments/csv-insight-lab">
+    Parse CSV locally before AI insights.
+  </Card>
+  <Card title="Receipt to JSON Lab" href="/docs/experiments/receipt-to-json-lab">
+    Document - structured JSON.
+  </Card>
+</Cards>

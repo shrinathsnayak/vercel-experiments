@@ -1,0 +1,89 @@
+---
+title: Webhook to Sheet Lab
+description: Receive webhooks, append sheet-like rows in Redis/memory, and replay a captured payload.
+---
+
+<ExperimentEmbed slug="webhook-to-sheet-lab" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+Webhook to Sheet Lab is a Wave 3 Batch H composition lab. Pure helpers live in `logic.ts`; missing providers or stores degrade honestly (never fabricate AI output).
+
+## Features
+
+- Webhook ingest - sheet rows
+- List + replay last payload
+- Redis/memory store
+
+## API Reference
+
+### `POST /api/hook · GET /api/rows · POST /api/replay`
+
+```json
+{ "event": "signup", "email": "a@b.co" }
+```
+
+| Status | Cause |
+| --- | --- |
+| `200` | Success |
+| `400` | Invalid body |
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### Validate
+
+Inputs are length-capped in `logic.ts`; APIs return `400` for missing fields.
+
+</Step>
+<Step>
+
+### Run
+
+Route Handlers compose AI SDK, Redis/Neon, or `ImageResponse` as documented. Fallbacks include honest notes.
+
+</Step>
+</Steps>
+
+## Limitations
+
+- Not Google Sheets API.
+- No auth on public deploys.
+- Demo-scale caps.
+
+## Use in your project
+
+Copy the Route Handler(s) and `logic.ts` from `apps/experiments/webhook-to-sheet-lab/`.
+
+## Deployment
+
+<ExperimentDeployButton slug="webhook-to-sheet-lab" />
+
+## Local Development
+
+```bash
+cd apps/experiments/webhook-to-sheet-lab
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `UPSTASH_REDIS_REST_*` | No | Durable rows |
+
+## Next Steps
+
+<Cards>
+  <Card title="Webhook Playground" href="/docs/experiments/webhook-playground">
+    Related experiment.
+  </Card>
+  <Card title="Form To Crm Lab" href="/docs/experiments/form-to-crm-lab">
+    Related experiment.
+  </Card>
+</Cards>

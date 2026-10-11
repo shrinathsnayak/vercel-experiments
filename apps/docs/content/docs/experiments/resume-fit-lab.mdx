@@ -1,0 +1,122 @@
+---
+title: Resume Fit Lab
+description: Score a resume against a job description with match score, missing skills, strengths, and rewritten bullets.
+---
+
+<ExperimentEmbed slug="resume-fit-lab" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+Resume Fit Lab compares a job description and resume (both textareas) and returns a structured fit report: `matchScore` (0–100), `missingSkills[]`, `strengths[]`, and `rewrittenBullets[]`. Helpers in `logic.ts` clamp the score and list lengths after `generateObject`. No keys - `503`.
+
+## Features
+
+- **Dual text inputs** – job description + resume (each capped ~10k chars).
+- **Structured fit report** – score, gaps, strengths, rewritten bullets.
+- **Normalized output** – `normalizeFitResult` clamps score and array sizes.
+- **Sample JD / resume** – one-click reset content.
+- **Honest degradation** – never invents a fit score without a provider.
+
+## Server Reference
+
+### `POST /api/fit`
+
+```json
+{ "jobDescription": "...", "resume": "..." }
+```
+
+#### Success (`200`)
+
+```json
+{
+  "matchScore": 78,
+  "missingSkills": ["Postgres"],
+  "strengths": ["Next.js", "TypeScript"],
+  "rewrittenBullets": ["Deployed Next.js apps on Vercel with typed APIs."],
+  "provider": "ai-gateway"
+}
+```
+
+| Status | Cause |
+| --- | --- |
+| `503` | No AI provider |
+| `400` | Missing either field |
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### Validate and truncate
+
+Both fields required; `truncateText` enforces `MAX_FIELD_CHARS`.
+
+</Step>
+<Step>
+
+### generateObject + normalize
+
+```ts
+const result = await generateObject({ model: resolveModel(), schema: fitSchema, prompt });
+return Response.json({ ...normalizeFitResult(result.object), provider: providerLabel() });
+```
+
+</Step>
+</Steps>
+
+## Use Cases
+
+- Coaching rewrite suggestions for applicants.
+- Teaching structured HR-adjacent AI outputs (with clear disclaimer).
+- Quick gap analysis before a real ATS pipeline.
+
+## Limitations
+
+- Educational only - not a hiring decision tool.
+- No file upload parsing beyond pasted text in this lab.
+- No auth / rate limits.
+- Score is model-subjective.
+
+## Use in your project
+
+Reuse the Zod `fitSchema` and `normalizeFitResult`. Add your own auth before exposing publicly.
+
+## Deployment
+
+<ExperimentDeployButton slug="resume-fit-lab" />
+
+## Local Development
+
+```bash
+cd apps/experiments/resume-fit-lab
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `AI_GATEWAY_API_KEY` | Yes (or `OPENAI_API_KEY`) | Preferred provider |
+| `OPENAI_API_KEY` | No | Fallback |
+| `AI_MODEL` | No | Model override |
+
+## Vercel / Next.js Features Used
+
+- AI SDK `generateObject`
+- Vercel AI Gateway
+- Route Handlers
+- Zod
+
+## Next Steps
+
+<Cards>
+  <Card title="AI Streaming Lab" href="/docs/experiments/ai-streaming-lab">
+    Gateway-first AI SDK patterns.
+  </Card>
+  <Card title="Flashcards from Notes" href="/docs/experiments/flashcards-from-notes">
+    Another generateObject composition lab.
+  </Card>
+</Cards>

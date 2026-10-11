@@ -1,0 +1,111 @@
+---
+title: Job Queue Lite
+description: Enqueue jobs in Redis/memory, drain via a Cron-style Route Handler, and watch progress in the UI.
+---
+
+<ExperimentEmbed slug="job-queue-lite" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+Job Queue Lite enqueues string payloads into Redis (or process memory), advances one job per drain step via Cron/`?run=1`, and shows a progress UI. Include `fail-me` in a payload to simulate failure.
+
+## Features
+
+- **Enqueue** – Redis list-as-JSON or shared memory store.
+- **Drain** – Cron Route Handler advances progress in chunks.
+- **Progress UI** – status, percent bar, error text.
+- Honest note when Redis is missing.
+
+## API Reference
+
+### `POST /api/queue`
+
+```json
+{ "payload": "resize-avatar:user-42" }
+```
+
+### `GET /api/queue`
+
+Lists jobs (`storage: redis | memory`).
+
+### `GET /api/drain?run=1` / `POST /api/drain`
+
+Drains one step. Production requires `Authorization: Bearer CRON_SECRET`.
+
+| Status | Cause |
+| --- | --- |
+| `400` | Missing payload |
+| `401` | Cron auth failed |
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### Enqueue
+
+Validate/truncate payload, append `queued` job, persist.
+
+</Step>
+<Step>
+
+### Drain
+
+`pickNextQueued` + `advanceJob` in `logic.ts` — pure progress math for tests.
+
+</Step>
+</Steps>
+
+## Use Cases
+
+- Teach Cron workers without a full queue product.
+- Prototype job progress UX.
+- Compare with Vercel Queues (`queues-lab`).
+
+## Limitations
+
+- Not a durable multi-instance queue without Redis.
+- Single-step drain is intentional (demo clarity).
+- No retries/backoff beyond the simulated failure path.
+
+## Use in your project
+
+Copy handlers and `logic.ts` from `apps/experiments/job-queue-lite/`.
+
+## Deployment
+
+<ExperimentDeployButton slug="job-queue-lite" />
+
+## Local Development
+
+```bash
+cd apps/experiments/job-queue-lite
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `UPSTASH_REDIS_REST_URL` / `TOKEN` | No | Durable queue |
+| `CRON_SECRET` | Prod cron | Authorize drain |
+
+## Vercel / Next.js Features Used
+
+- Upstash Redis
+- Vercel Cron
+- Route Handlers
+
+## Next Steps
+
+<Cards>
+  <Card title="Queues Lab" href="/docs/experiments/queues-lab">
+    Vercel Queues v2 beta patterns.
+  </Card>
+  <Card title="Cron Jobs Lab" href="/docs/experiments/cron-jobs-lab">
+    Heartbeat Cron + Blob.
+  </Card>
+</Cards>

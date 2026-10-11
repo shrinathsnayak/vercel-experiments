@@ -1,0 +1,83 @@
+---
+title: Prompt A/B Eval
+description: Two system prompts on one user message — side-by-side outputs plus structured judge scores.
+---
+
+<ExperimentEmbed slug="prompt-ab-eval" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+Run the same user prompt under two system prompts, compare outputs side-by-side, and score with a judge model.
+
+## Features
+
+- Standalone Next.js app under `apps/experiments/prompt-ab-eval/`.
+- Honest degradation when optional services are missing.
+- Unit-tested helpers in `logic.ts`.
+
+## Server Reference
+
+### `POST /api/eval`
+
+```
+{ "systemA", "systemB", "user" }
+```
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### Run the demo
+
+Use the embedded playground or `pnpm dev` in the experiment app.
+
+</Step>
+<Step>
+
+### Inspect the handlers
+
+Copy Route Handlers from `apps/experiments/prompt-ab-eval/` into your project.
+
+</Step>
+</Steps>
+
+## Limitations
+
+- Educational demo — not a production-hardened product.
+- Inputs are length-capped.
+
+## Use in your project
+
+Copy the experiment folder or individual Route Handlers.
+
+## Deployment
+
+<ExperimentDeployButton slug="prompt-ab-eval" />
+
+## Local Development
+
+```bash
+cd apps/experiments/prompt-ab-eval
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `AI_GATEWAY_API_KEY` | Yes | Lab configuration |
+
+## Vercel / Next.js Features Used
+
+- AI SDK, AI Gateway, Zod
+
+## Next Steps
+
+<Cards>
+  <Card title="cost-aware-ai-lab" href="/docs/experiments/cost-aware-ai-lab">Related lab.</Card>
+  <Card title="ab-landing-copy-lab" href="/docs/experiments/ab-landing-copy-lab">Related lab.</Card>
+</Cards>

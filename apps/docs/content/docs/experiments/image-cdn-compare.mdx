@@ -1,0 +1,83 @@
+---
+title: Image CDN Compare
+description: Compare the same public asset via raw URL vs /_next/image — size and Content-Type table.
+---
+
+<ExperimentEmbed slug="image-cdn-compare" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+Measure raw public URL vs `/_next/image` for the same sample asset (size + Content-Type).
+
+## Features
+
+- Standalone Next.js app under `apps/experiments/image-cdn-compare/`.
+- Honest degradation when optional services are missing.
+- Unit-tested helpers in `logic.ts`.
+
+## API Reference
+
+### `POST /api/compare`
+
+```
+{ "path", "width", "quality" }
+```
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### Run the demo
+
+Use the embedded playground or `pnpm dev` in the experiment app.
+
+</Step>
+<Step>
+
+### Inspect the handlers
+
+Copy Route Handlers from `apps/experiments/image-cdn-compare/` into your project.
+
+</Step>
+</Steps>
+
+## Limitations
+
+- Educational demo — not a production-hardened product.
+- Inputs are length-capped.
+
+## Use in your project
+
+Copy the experiment folder or individual Route Handlers.
+
+## Deployment
+
+<ExperimentDeployButton slug="image-cdn-compare" />
+
+## Local Development
+
+```bash
+cd apps/experiments/image-cdn-compare
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| — | — | No required secrets |
+
+## Vercel / Next.js Features Used
+
+- Next.js, Image Optimization
+
+## Next Steps
+
+<Cards>
+  <Card title="image-optimization-lab" href="/docs/experiments/image-optimization-lab">Related lab.</Card>
+  <Card title="og-image-studio" href="/docs/experiments/og-image-studio">Related lab.</Card>
+</Cards>

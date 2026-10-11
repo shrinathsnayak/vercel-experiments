@@ -1,0 +1,92 @@
+---
+title: CDN Redirects Lab
+description: "Edit a redirect map, export vercel.json redirects config, and evaluate rules client-side with the same engine."
+---
+
+<ExperimentEmbed slug="cdn-redirects-lab" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+Edit redirect rules in the UI, export a `vercel.json` `redirects` block, and evaluate the **same rule engine** in the browser. Supports simple `:path*` expansion for teaching CDN redirects. Deploy the export for real edge redirects on Vercel.
+
+## Features
+
+- Editable redirect map
+- vercel.json export + copy
+- Client-side match evaluation (`logic.ts`)
+- Permanent (308) vs temporary (307)
+- Basic :path* support
+
+## UI Reference
+
+| Control | Behavior |
+| --- | --- |
+| Test path | Pathname fed into `applyRedirects` |
+| Rule rows | Source, destination, permanent flag |
+| Add rule | Appends a blank rule |
+| Match line | Status + destination, or "no match" |
+| vercel.json export | `toVercelJson(rules)` for copy/paste |
+| Evaluation panel | JSON of the live client match |
+
+No Route Handlers - the demo is fully client-side.
+
+## Implementation Details
+
+<Files>
+  <Folder name="apps/experiments/cdn-redirects-lab" defaultOpen>
+    <File name="demo.tsx" />
+    <File name="logic.ts" />
+    <File name="logic.test.ts" />
+  </Folder>
+</Files>
+
+`applyRedirects` and `toVercelJson` are pure and unit-tested. The UI runs that matcher directly - no thin JSON API wrapper.
+
+## Use Cases
+
+- Migrate old paths
+- Prototype CDN redirects before deploy
+- Teach vercel.json redirects
+
+## Limitations
+
+- Subset of Vercel redirect features (no has/missing conditions).
+- Platform still applies real vercel.json at the edge on deploy.
+- Avoid open redirects to untrusted destinations.
+
+## Use in your project
+
+Copy `apps/experiments/cdn-redirects-lab/logic.ts` helpers into your tooling, then paste the exported `redirects` into `vercel.json` (or project Redirects settings).
+
+## Deployment
+
+<ExperimentDeployButton slug="cdn-redirects-lab" />
+
+## Local Development
+
+```bash
+cd apps/experiments/cdn-redirects-lab
+pnpm install
+pnpm dev
+```
+
+Open http://localhost:3010
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| _(none)_ | - | Works without extra secrets |
+
+## Vercel / Next.js Features Used
+
+- vercel.json redirects (export target)
+- Client-side pure TypeScript rule engine
+
+## Next Steps
+
+- Explore related labs from the registry `relatedSlugs`
+- Harden secrets, auth, and input limits before production
+- Prefer platform primitives when you outgrow demo patterns

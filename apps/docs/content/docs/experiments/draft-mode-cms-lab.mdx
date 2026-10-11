@@ -1,0 +1,90 @@
+---
+title: Draft Mode CMS Lab
+description: "Edit markdown in the UI, store a draft in Blob or memory, enable Draft Mode preview, then publish live."
+---
+
+<ExperimentEmbed slug="draft-mode-cms-lab" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+Edit markdown, save a draft to **Vercel Blob or memory**, enable Next.js **Draft Mode** for preview, then publish to a live path. Follows the App Router Draft Mode guide pattern.
+
+## Features
+
+- Markdown editor - draft store
+- Blob backend with memory fallback
+- draftMode().enable() preview cookie
+- Publish to /live/[slug]
+- Preview gate when Draft Mode is off
+
+## API Reference
+
+### POST /api/cms/draft - save draft
+
+### GET /api/cms/draft?slug= - read draft
+
+### POST /api/cms/publish - promote to live
+
+### GET /api/draft?slug= - enable Draft Mode + redirect to preview
+
+## Implementation Details
+
+<Files>
+  <Folder name="apps/experiments/draft-mode-cms-lab" defaultOpen>
+    <File name="demo.tsx" />
+    <File name="logic.ts" />
+    <File name="logic.test.ts" />
+  </Folder>
+</Files>
+
+`lib/cms-store.ts` writes `cms/draft|live/<slug>.md` to Blob when configured. Preview pages check `draftMode().isEnabled`.
+
+## Use Cases
+
+- CMS preview workflows
+- Teaching Draft Mode cookies
+- Blob-backed content drafts
+
+## Limitations
+
+- Lite markdown HTML is not a full sanitizer.
+- Memory drafts reset on cold start.
+- No CMS auth secret on the draft enable route (add one in production).
+
+## Use in your project
+
+Deploy or copy `apps/experiments/draft-mode-cms-lab/` and adapt the Route Handlers and pure helpers in `logic.ts`. Keep honest fallbacks when optional services are missing.
+
+## Deployment
+
+<ExperimentDeployButton slug="draft-mode-cms-lab" />
+
+## Local Development
+
+```bash
+cd apps/experiments/draft-mode-cms-lab
+pnpm install
+pnpm dev
+```
+
+Open http://localhost:3010
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `BLOB_READ_WRITE_TOKEN` | No | Optional Blob persistence |
+
+## Vercel / Next.js Features Used
+
+- Draft Mode
+- Route Handlers
+- Vercel Blob (optional)
+
+## Next Steps
+
+- Explore related labs from the registry `relatedSlugs`
+- Harden secrets, auth, and input limits before production
+- Prefer platform primitives when you outgrow demo patterns

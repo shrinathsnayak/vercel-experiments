@@ -1,0 +1,89 @@
+---
+title: Invite-Only Beta
+description: Redeem invite codes into a Redis/memory allowlist and gate a demo beta surface.
+---
+
+<ExperimentEmbed slug="invite-only-beta" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+Invite-Only Beta is a Wave 3 Batch H composition lab. Pure helpers live in `logic.ts`; missing providers or stores degrade honestly (never fabricate AI output).
+
+## Features
+
+- Seed + redeem invite codes
+- Allowlist membership check
+- Redis/memory store
+
+## API Reference
+
+### `POST /api/invite · GET /api/invite`
+
+```json
+{ "code": "BETA-ACME", "email": "a@b.co" }
+```
+
+| Status | Cause |
+| --- | --- |
+| `200` | Success |
+| `400` | Invalid / already used |
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### Validate
+
+Inputs are length-capped in `logic.ts`; APIs return `400` for missing fields.
+
+</Step>
+<Step>
+
+### Run
+
+Route Handlers compose AI SDK, Redis/Neon, or `ImageResponse` as documented. Fallbacks include honest notes.
+
+</Step>
+</Steps>
+
+## Limitations
+
+- Fixed seed codes.
+- No email invites.
+- Demo-scale only.
+
+## Use in your project
+
+Copy the Route Handler(s) and `logic.ts` from `apps/experiments/invite-only-beta/`.
+
+## Deployment
+
+<ExperimentDeployButton slug="invite-only-beta" />
+
+## Local Development
+
+```bash
+cd apps/experiments/invite-only-beta
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `UPSTASH_REDIS_REST_*` | No | Durable allowlist |
+
+## Next Steps
+
+<Cards>
+  <Card title="Waitlist Viral Lab" href="/docs/experiments/waitlist-viral-lab">
+    Related experiment.
+  </Card>
+  <Card title="Auth Gated Preview" href="/docs/experiments/auth-gated-preview">
+    Related experiment.
+  </Card>
+</Cards>

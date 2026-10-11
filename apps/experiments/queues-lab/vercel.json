@@ -1,0 +1,12 @@
+{
+  "functions": {
+    "app/api/queues/fulfill/route.ts": {
+      "experimentalTriggers": [
+        {
+          "type": "queue/v2beta",
+          "topic": "experiments-orders"
+        }
+      ]
+    }
+  }
+}

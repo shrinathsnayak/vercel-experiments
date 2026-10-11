@@ -1,0 +1,89 @@
+---
+title: Multi-Tenant Notes
+description: Tenant from path segment or x-tenant-id header - isolated notes in Neon/memory with honest fallbacks.
+---
+
+<ExperimentEmbed slug="multi-tenant-notes" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+Multi-Tenant Notes is a Wave 3 Batch H composition lab. Pure helpers live in `logic.ts`; missing providers or stores degrade honestly (never fabricate AI output).
+
+## Features
+
+- Resolve tenant from header or query
+- Per-tenant note lists
+- Neon/memory persistence
+
+## API Reference
+
+### `GET|POST /api/notes`
+
+```json
+{ "text": "Ship docs", "tenant": "acme" }
+```
+
+| Status | Cause |
+| --- | --- |
+| `200` | Success |
+| `400` | Missing tenant/text |
+
+## Implementation Details
+
+<Steps>
+<Step>
+
+### Validate
+
+Inputs are length-capped in `logic.ts`; APIs return `400` for missing fields.
+
+</Step>
+<Step>
+
+### Run
+
+Route Handlers compose AI SDK, Redis/Neon, or `ImageResponse` as documented. Fallbacks include honest notes.
+
+</Step>
+</Steps>
+
+## Limitations
+
+- Not row-level security.
+- No auth users.
+- Memory resets on cold start.
+
+## Use in your project
+
+Copy the Route Handler(s) and `logic.ts` from `apps/experiments/multi-tenant-notes/`.
+
+## Deployment
+
+<ExperimentDeployButton slug="multi-tenant-notes" />
+
+## Local Development
+
+```bash
+cd apps/experiments/multi-tenant-notes
+pnpm install
+pnpm dev
+```
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `DATABASE_URL` | No | Neon persistence |
+
+## Next Steps
+
+<Cards>
+  <Card title="Notes To Actions Lab" href="/docs/experiments/notes-to-actions-lab">
+    Related experiment.
+  </Card>
+  <Card title="Neon Postgres Lab" href="/docs/experiments/neon-postgres-lab">
+    Related experiment.
+  </Card>
+</Cards>

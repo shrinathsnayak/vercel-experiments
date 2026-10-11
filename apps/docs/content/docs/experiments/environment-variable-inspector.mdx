@@ -1,0 +1,297 @@
+---
+title: Environment Variable Inspector
+description: Use dummy values to learn which variables are public, server-only, or invalid.
+---
+
+<ExperimentEmbed slug="environment-variable-inspector" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+The Environment Variable Inspector is a client-only experiment where you edit a dummy `.env` sample and compare two views of the same data: what the **server runtime** would see and what a **client bundle** would expose. It is built with React state and four pure functions in `apps/experiments/environment-variable-inspector/logic.ts`. It has no API routes, no external services, and needs no environment variables of its own.
+
+It teaches the rule at the heart of Next.js configuration: only variables prefixed with `NEXT_PUBLIC_` are inlined into browser code, while everything else stays on the server.
+
+<Callout type="info">
+  The editor starts with hardcoded dummy values and the page never reads your real `process.env` or any `.env` file. Do not paste real secrets into it. The text you type is processed in your browser only, and is not sent anywhere by this experiment.
+</Callout>
+
+## Features
+
+- Editable dummy `.env` text area seeded with a sample.
+- Line-by-line parsing with comments, blank lines, and quoted values.
+- Parse errors shown with line numbers.
+- **Client bundle view**: public values shown, server values replaced with `[REDACTED - server only]`.
+- **Server runtime view**: every valid key with its value.
+- Reset button restoring the sample.
+
+## UI Reference
+
+This experiment has no API routes.
+
+<TypeTable
+  type={{
+    envText: {
+      description:
+        "Free-form .env text. Each non-empty, non-comment line should look like KEY=value. Lines starting with # are ignored. Values wrapped in matching single or double quotes have the quotes removed.",
+      type: "string",
+      default: "DUMMY_ENV_SAMPLE",
+    },
+  }}
+/>
+
+### Classification rules
+
+`classifyEnvKey` trims the key and applies these rules in order:
+
+| Condition | Classification | Client view | Server view |
+| --- | --- | --- | --- |
+| Key does not match `^[A-Z][A-Z0-9_]*$` (empty, lowercase, starts with a digit, contains `-`, spaces, etc.) | `invalid` | omitted | omitted |
+| Key starts with `NEXT_PUBLIC_` | `public` | value shown | value shown |
+| Any other valid key | `server` | `[REDACTED - server only]` | value shown |
+
+### Default sample
+
+```bash
+# Dummy values for education only
+NEXT_PUBLIC_SITE_URL=https://demo.example.com
+NEXT_PUBLIC_FEATURE_FLAG=true
+DATABASE_URL=postgres://demo:demo@localhost:5432/demo
+API_SECRET_KEY=sk_demo_not_real
+```
+
+Client bundle view for that sample:
+
+```json
+{
+  "NEXT_PUBLIC_SITE_URL": "https://demo.example.com",
+  "NEXT_PUBLIC_FEATURE_FLAG": "true",
+  "DATABASE_URL": "[REDACTED - server only]",
+  "API_SECRET_KEY": "[REDACTED - server only]"
+}
+```
+
+Parse errors look like this (for a line with no `=`):
+
+```text
+Line 1: expected KEY=value
+```
+
+## Implementation Details
+
+### Flow
+
+<Steps>
+<Step>
+
+### Parse the text
+
+`parseEnvFile` splits on `\n` or `\r\n`, skips blanks and `#` comments, requires an `=` after at least one character, trims the key and value, and strips one pair of matching quotes.
+
+```ts
+lines.forEach((raw, index) => {
+  const line = index + 1;
+  const trimmed = raw.trim();
+  if (!trimmed || trimmed.startsWith('#')) return;
+
+  const eq = trimmed.indexOf('=');
+  if (eq <= 0) {
+    errors.push(`Line ${line}: expected KEY=value`);
+    return;
+  }
+
+  const key = trimmed.slice(0, eq).trim();
+  let value = trimmed.slice(eq + 1).trim();
+  if (
+    (value.startsWith('"') && value.endsWith('"')) ||
+    (value.startsWith("'") && value.endsWith("'"))
+  ) {
+    value = value.slice(1, -1);
+  }
+
+  entries.push({ key, value, line });
+});
+```
+
+</Step>
+<Step>
+
+### Classify each key
+
+```ts
+const PUBLIC_PREFIX = 'NEXT_PUBLIC_';
+const VALID_KEY = /^[A-Z][A-Z0-9_]*$/;
+
+export function classifyEnvKey(name: string): EnvClassification {
+  const key = name.trim();
+  if (INVALID_KEY.test(key) || !VALID_KEY.test(key)) return 'invalid';
+  if (key.startsWith(PUBLIC_PREFIX)) return 'public';
+  return 'server';
+}
+```
+
+</Step>
+<Step>
+
+### Build the two views
+
+The client view redacts server values. The server view returns every non-invalid entry.
+
+```ts
+export function redactForClient(entries: EnvEntry[]): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const entry of entries) {
+    const kind = classifyEnvKey(entry.key);
+    if (kind === 'public') {
+      out[entry.key] = entry.value;
+    } else if (kind === 'server') {
+      out[entry.key] = '[REDACTED - server only]';
+    }
+  }
+  return out;
+}
+
+export function serverView(entries: EnvEntry[]): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const entry of entries) {
+    if (classifyEnvKey(entry.key) !== 'invalid') {
+      out[entry.key] = entry.value;
+    }
+  }
+  return out;
+}
+```
+
+</Step>
+<Step>
+
+### Render both as JSON
+
+The demo memoizes each step with `useMemo` and prints `JSON.stringify(view, null, 2)` for each panel.
+
+</Step>
+</Steps>
+
+## Use Cases
+
+- Teaching why putting a secret behind a `NEXT_PUBLIC_` prefix is a leak.
+- Reviewing a `.env.example` before committing it, to see which entries would end up in browser code.
+- Demonstrating key naming conventions (uppercase letters, digits, and underscores).
+- Onboarding material for configuring Preview versus Production on Vercel.
+
+## Limitations
+
+Security note from the registry:
+
+- Demo uses dummy values only - never loads real process secrets into the client.
+
+Limits and behaviors taken from the code:
+
+- **Invalid keys disappear silently.** A line such as `lower_case=1` parses successfully but classifies as `invalid`, and it is then omitted from both views without an error message. Only lines without a usable `KEY=value` shape produce an error.
+- **Not a full dotenv parser.** There is no support for `export KEY=value` (the key would be `export KEY` and be invalid), inline comments after a value, multi-line values, or variable expansion.
+- **Duplicate keys.** Later lines overwrite earlier ones in the output objects, and no warning is shown.
+- **Simulation of the client bundle.** The client view is a redaction model. It does not run a Next.js build, so it does not prove that a value was inlined or that your code referenced it. In real Next.js, `NEXT_PUBLIC_` values are inlined at build time wherever your code reads them.
+- **Server view shows dummy values in clear.** This is intentional because the data is fake; never paste real credentials.
+- **Zod is listed, not used.** The registry lists Zod as a technology, but this experiment's code does not import it. The classification is a regular expression and string prefix check.
+
+## Use in your project
+
+Reuse the classification and redaction helpers to lint a `.env.example`, or add runtime validation with Zod on the server:
+
+```ts
+// lib/env-classify.ts
+const PUBLIC_PREFIX = 'NEXT_PUBLIC_';
+const VALID_KEY = /^[A-Z][A-Z0-9_]*$/;
+
+export type EnvClassification = 'public' | 'server' | 'invalid';
+
+export function classifyEnvKey(name: string): EnvClassification {
+  const key = name.trim();
+  if (!VALID_KEY.test(key)) return 'invalid';
+  return key.startsWith(PUBLIC_PREFIX) ? 'public' : 'server';
+}
+```
+
+```ts
+// lib/env.ts - optional server-side validation (an extension, not part of the experiment)
+import { z } from 'zod';
+
+const serverEnv = z.object({
+  DATABASE_URL: z.string().min(1),
+  API_SECRET_KEY: z.string().min(1),
+});
+
+const publicEnv = z.object({
+  NEXT_PUBLIC_SITE_URL: z.url(),
+});
+
+export const env = {
+  ...serverEnv.parse(process.env),
+  ...publicEnv.parse(process.env),
+};
+```
+
+Keep a file that imports secrets out of any Client Component import graph, for example by marking it with the `server-only` package.
+
+## Deployment
+
+<ExperimentDeployButton slug="environment-variable-inspector" />
+
+
+No Marketplace stores or secrets are needed, and no experiment-specific deploy button is registered. A plain Vercel deploy works via the Deploy button on this experiment page. When you apply what you learn here, configure variables in the Vercel project settings per environment.
+
+## Local Development
+
+```bash
+pnpm install
+pnpm dev
+```
+
+Open the experiment page and try these edits:
+
+- Add `MY_FLAG=on` and see it redacted in the client view.
+- Rename it to `NEXT_PUBLIC_MY_FLAG=on` and see the value appear.
+- Add `bad line` and see `Line N: expected KEY=value`.
+- Add `lowercase=1` and notice that it vanishes from both views.
+
+Unit tests are in `apps/experiments/environment-variable-inspector/logic.test.ts`:
+
+```bash
+pnpm test
+```
+
+This experiment has no API routes, so there are no `curl` examples.
+
+## Configuration
+
+| Item | Required | Notes |
+| --- | --- | --- |
+| Environment variables | No | The experiment never reads `process.env`. |
+| External services | No | None. |
+
+## Vercel / Next.js Features Used
+
+- [Next.js environment variables](https://nextjs.org/docs/app/guides/environment-variables) - `NEXT_PUBLIC_` inlining and `.env*` files.
+- [Vercel environment variables](https://vercel.com/docs/environment-variables) - per-environment project configuration.
+- [Client Components](https://nextjs.org/docs/app/getting-started/server-and-client-components) - the demo itself runs in a client component.
+
+## Next Steps
+
+<Cards>
+  <Card
+    title="Global Config Lab"
+    href="/docs/experiments/global-config-lab"
+    description="Read ultra-low-latency configuration for flags and kill switches."
+  />
+  <Card
+    title="AI Streaming Lab"
+    href="/docs/experiments/ai-streaming-lab"
+    description="A live demo that keeps provider keys server-side."
+  />
+  <Card
+    title="Next.js environment variables guide"
+    href="https://nextjs.org/docs/app/guides/environment-variables"
+    description="Official guide to loading and exposing variables."
+  />
+</Cards>

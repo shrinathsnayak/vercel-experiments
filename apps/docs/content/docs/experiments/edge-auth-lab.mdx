@@ -1,0 +1,89 @@
+---
+title: Edge Auth Lab
+description: "Issue and verify short-lived JWTs with jose, protect a route, and explore clock-skew failure cases."
+---
+
+<ExperimentEmbed slug="edge-auth-lab" />
+
+<Callout type="warning">
+  This is an experimental demo. Use it as a starting point for your own projects.
+</Callout>
+
+Issue short-lived HS256 JWTs with **jose** (real crypto), verify them on a protected Route Handler, and explore clock-skew cases via `iat` offsets and verification tolerance.
+
+## Features
+
+- Issue JWT with configurable TTL
+- iat offset for not-yet-valid demos
+- Protected route with Bearer token
+- Clock tolerance parameter
+- Dev secret fallback labeled honestly
+
+## API Reference
+
+### POST /api/auth/token
+
+Body: `{ sub?, ttlSeconds?, iatOffsetSeconds?, scope? }`.
+
+### GET /api/auth/protected?tolerance=5
+
+Requires `Authorization: Bearer <token>`.
+
+## Implementation Details
+
+<Files>
+  <Folder name="apps/experiments/edge-auth-lab" defaultOpen>
+    <File name="demo.tsx" />
+    <File name="logic.ts" />
+    <File name="logic.test.ts" />
+  </Folder>
+</Files>
+
+`lib/jwt.ts` wraps `SignJWT` / `jwtVerify`. `classifySkew` is pure for tests and UI hints.
+
+## Use Cases
+
+- Short-lived API tokens
+- Teaching JWT expiry/skew
+- Edge-friendly auth primitives
+
+## Limitations
+
+- Not a full auth product (no refresh, sessions, or OIDC).
+- Dev fallback secret is for local demos only - set JWT_SECRET.
+- HS256 shared secret; asymmetric keys are out of scope.
+
+## Use in your project
+
+Deploy or copy `apps/experiments/edge-auth-lab/` and adapt the Route Handlers and pure helpers in `logic.ts`. Keep honest fallbacks when optional services are missing.
+
+## Deployment
+
+<ExperimentDeployButton slug="edge-auth-lab" />
+
+## Local Development
+
+```bash
+cd apps/experiments/edge-auth-lab
+pnpm install
+pnpm dev
+```
+
+Open http://localhost:3010
+
+## Configuration
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `JWT_SECRET` | No | Recommended in production; lab has a labeled dev fallback |
+
+## Vercel / Next.js Features Used
+
+- Route Handlers
+- jose
+
+## Next Steps
+
+- Explore related labs from the registry `relatedSlugs`
+- Harden secrets, auth, and input limits before production
+- Prefer platform primitives when you outgrow demo patterns
