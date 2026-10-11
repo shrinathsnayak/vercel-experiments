@@ -209,7 +209,7 @@ const decision = useMemo(() => evaluateRequest(rules, request), [rules, request]
 
 ### How this differs from the repository's real `proxy.ts`
 
-This repository's actual `proxy.ts` is separate from the lab. It rewrites documentation URLs to Markdown content (using `fumadocs-core/negotiation`) when a `.md` suffix is requested or the `Accept` header prefers Markdown, and otherwise calls `NextResponse.next()`. The lab does not read or run that file.
+This repository's actual `proxy.ts` is separate from the lab. It negotiates Markdown sitewide (homepage, marketing pages, and docs) via `fumadocs-core/negotiation` when a `.md` suffix is requested or `Accept` prefers Markdown, rewriting to Markdown route handlers and otherwise calling `NextResponse.next()` with `Vary: Accept`. The lab does not read or run that file.
 
 ```ts
 export default function proxy(request: NextRequest) {

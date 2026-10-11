@@ -1,0 +1,14 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "headers": [
+    {
+      "source": "/((?!_next/static|_next/image|favicon.ico).*)",
+      "headers": [
+        {
+          "key": "Vary",
+          "value": "Accept, rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch"
+        }
+      ]
+    }
+  ]
+}

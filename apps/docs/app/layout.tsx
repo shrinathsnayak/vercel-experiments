@@ -8,6 +8,7 @@ import {
   appDescription,
   appName,
   changelogRoute,
+  contactRoute,
   contributeRoute,
   docsRoute,
   homeRoute,
@@ -26,10 +27,12 @@ const mono = Geist_Mono({
   variable: '--font-mono',
 });
 
+const defaultTitle = `${appName} · Next.js & Vercel developer tools`;
+
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: appName,
+    default: defaultTitle,
     template: `%s · ${appName}`,
   },
   description: appDescription,
@@ -38,16 +41,28 @@ export const metadata: Metadata = {
   creator: appName,
   publisher: appName,
   keywords: [
+    'Vercel Experiments',
     'Next.js',
     'Vercel',
+    'developer tools',
     'experiments',
     'playground',
     'open source',
     'Edge Middleware',
     'AI SDK',
+    'OpenAPI',
   ],
+  alternates: {
+    canonical: siteUrl,
+    types: {
+      'text/markdown': [{ url: siteUrl, title: `${appName} (Markdown)` }],
+      'application/json': [
+        { url: `${siteUrl}/openapi.json`, title: 'OpenAPI specification' },
+      ],
+    },
+  },
   openGraph: {
-    title: appName,
+    title: defaultTitle,
     description: appDescription,
     siteName: appName,
     type: 'website',
@@ -57,7 +72,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: appName,
+    title: defaultTitle,
     description: appDescription,
     images: [defaultOgImagePath],
   },
@@ -77,6 +92,7 @@ export default function Layout({ children }: LayoutProps<'/'>) {
               ['Home', homeRoute],
               ['Documentation', docsRoute],
               ['About', aboutRoute],
+              ['Contact', contactRoute],
               ['Contribute', contributeRoute],
               ["What's New", changelogRoute],
             ],

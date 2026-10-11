@@ -28,13 +28,14 @@ import {
   getRecentExperiments,
   type ExperimentCategory,
 } from '@/lib/experiments';
+import { buildHomepageJsonLd } from '@/lib/seo/json-ld';
 import {
   appDescription,
   appName,
   changelogRoute,
   githubUrl,
-  platformDeployUrl,
 } from '@/lib/shared';
+import { platformDeployUrl } from '@/lib/vercel/deploy';
 import { cn } from '@/lib/utils';
 
 const categoryIcons: Record<ExperimentCategory, LucideIcon> = {
@@ -67,8 +68,14 @@ export default function HomePage() {
     };
   });
 
+  const jsonLd = buildHomepageJsonLd(published.length);
+
   return (
     <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 sm:py-12">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       <section className="relative overflow-hidden rounded-2xl border px-6 py-10 sm:px-10 sm:py-12">
         <HeroBackdrop />
         <div className="relative grid items-center gap-10 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">

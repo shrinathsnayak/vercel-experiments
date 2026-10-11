@@ -4,10 +4,13 @@ import {
   aboutRoute,
   appName,
   changelogRoute,
+  contactRoute,
   contributeRoute,
+  developersRoute,
   docsRoute,
   githubUrl,
   homeRoute,
+  openApiRoute,
   portfolioUrl,
   privacyRoute,
 } from '@/lib/shared';
@@ -19,6 +22,7 @@ const footerColumns = [
       { label: 'Documentation', href: docsRoute },
       { label: 'Getting started', href: `${docsRoute}/getting-started` },
       { label: "What's New", href: changelogRoute },
+      { label: 'Developers', href: developersRoute },
     ],
   },
   {
@@ -28,12 +32,14 @@ const footerColumns = [
       { label: 'Local development', href: `${docsRoute}/local-development` },
       { label: 'Adding an experiment', href: `${docsRoute}/adding-an-experiment` },
       { label: 'Contributing', href: `${docsRoute}/contributing` },
+      { label: 'OpenAPI', href: openApiRoute },
     ],
   },
   {
     title: 'Project',
     links: [
       { label: 'About', href: aboutRoute },
+      { label: 'Contact', href: contactRoute },
       { label: 'Contribute', href: contributeRoute },
       { label: 'Privacy', href: privacyRoute },
       { label: 'GitHub', href: githubUrl, external: true },

@@ -4,7 +4,9 @@ import { buildSitemapEntries } from '@/lib/seo/site-index';
 import { source } from '@/lib/source';
 import {
   aboutRoute,
+  contactRoute,
   contributeRoute,
+  developersRoute,
   homeRoute,
   privacyRoute,
   siteUrl,
@@ -13,7 +15,9 @@ import {
 const MARKETING_ROUTES = [
   homeRoute,
   aboutRoute,
+  contactRoute,
   contributeRoute,
+  developersRoute,
   privacyRoute,
 ] as const;
 

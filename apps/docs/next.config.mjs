@@ -26,6 +26,15 @@ const config = {
       },
     ];
   },
+  async headers() {
+    return [
+      {
+        // Advertise Accept negotiation for HTML/Markdown dual representations.
+        source: '/:path*',
+        headers: [{ key: 'Vary', value: 'Accept' }],
+      },
+    ];
+  },
 };
 
 export default withMDX(config);

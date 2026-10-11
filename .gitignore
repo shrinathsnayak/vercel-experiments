@@ -12,6 +12,8 @@ apps/**/.source
 /coverage
 /.next/
 apps/**/.next/
+apps/**/test-results/
+apps/**/playwright-report/
 /out/
 /build
 *.tsbuildinfo

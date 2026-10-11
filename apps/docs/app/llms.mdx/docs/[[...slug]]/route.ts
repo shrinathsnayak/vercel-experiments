@@ -1,6 +1,7 @@
+import { buildNotFoundMarkdown } from '@/lib/agent/markdown-pages';
+import { markdownResponseHeaders } from '@/lib/agent/vary';
 import { docsLlms, source } from '@/lib/source';
-import { getPageMarkdownUrl } from '@/lib/shared';
-import { notFound } from 'next/navigation';
+import { docsRoute, getPageMarkdownUrl } from '@/lib/shared';
 
 export const revalidate = false;
 
@@ -10,12 +11,17 @@ export async function GET(_req: Request, { params }: RouteContext<'/llms.mdx/doc
   const slugs = slug?.slice(0, -1) ?? [];
   if (slugs.at(-1) === 'index') slugs.pop();
   const page = source.getPage(slugs);
-  if (!page) notFound();
+  if (!page) {
+    const pathname =
+      slugs.length === 0 ? docsRoute : `${docsRoute}/${slugs.join('/')}`;
+    return new Response(buildNotFoundMarkdown(pathname), {
+      status: 404,
+      headers: markdownResponseHeaders,
+    });
+  }
 
   return new Response(await docsLlms.page(page), {
-    headers: {
-      'Content-Type': 'text/markdown',
-    },
+    headers: markdownResponseHeaders,
   });
 }
 

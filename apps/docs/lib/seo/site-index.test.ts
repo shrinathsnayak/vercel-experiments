@@ -31,7 +31,14 @@ function experiment(
 describe('collectPublicPaths', () => {
   it('keeps marketing + guide docs and only published experiment pages', () => {
     const paths = collectPublicPaths({
-      marketingRoutes: ['/', '/about', '/contribute', '/privacy'],
+      marketingRoutes: [
+        '/',
+        '/about',
+        '/contact',
+        '/contribute',
+        '/developers',
+        '/privacy',
+      ],
       docsPages: [
         { url: '/docs' },
         { url: '/docs/getting-started' },
@@ -51,7 +58,9 @@ describe('collectPublicPaths', () => {
     expect(paths).toEqual([
       '/',
       '/about',
+      '/contact',
       '/contribute',
+      '/developers',
       '/docs',
       '/docs/experiments/webhook-playground',
       '/docs/getting-started',
